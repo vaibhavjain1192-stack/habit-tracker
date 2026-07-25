@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>66-Day Habit Tracker</title>
+<style>
+:root {
+  --bg:#0d0d0d; --s1:#161616; --s2:#1e1e1e; --s3:#272727; --s4:#323232;
+  --bd:#2a2a2a; --bd2:#3a3a3a; --bd3:#4a4a4a;
+  --tx:#f0f0f0; --tx2:#888; --tx3:#555; --tx4:#333;
+  --green:#22c55e; --gd:#16a34a; --gbg:#051a08;
+  --amber:#f59e0b; --abg:#1f1200;
+  --blue:#3b82f6; --bbg:#0d1e38;
+  --red:#ef4444; --rbg:#1f0808;
+  --r:10px; --rs:6px;
+  --font:'Inter',-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+}
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+html{-webkit-text-size-adjust:100%}
+body{font-family:var(--font);background:var(--bg);color:var(--tx);min-height:100vh;font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased}
+button{font-family:var(--font);cursor:pointer;-webkit-tap-highlight-color:transparent}
+input,select{font-family:var(--font)}
+
+/* APP */
+.app{max-width:640px;margin:0 auto;padding:16px 12px 80px}
+
+/* TOPBAR */
+.topbar{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:16px}
+.topbar h1{font-size:18px;font-weight:700;letter-spacing:-.4px}
+.topbar-right{display:flex;gap:6px;align-items:center;flex-shrink:0}
+.status-chip{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:600}
+.status-chip.ok{background:var(--gbg);color:var(--green)}
+.status-chip.err{background:var(--rbg);color:var(--red)}
+.status-chip.loading{background:var(--s2);color:var(--tx2)}
+.dot{width:6px;height:6px;border-radius:50%;background:currentColor;flex-shrink:0}
+
+/* SETUP BANNER */
+.setup-banner{background:var(--bbg);border:1px solid var(--blue);border-radius:var(--r);padding:16px;margin-bottom:16px}
+.setup-banner h2{font-size:14px;font-weight:600;color:var(--blue);margin-bottom:8px}
+.setup-banner ol{font-size:12px;color:var(--tx2);line-height:1.9;margin-left:16px;margin-bottom:12px}
+.setup-banner ol li strong{color:var(--tx)}
+.setup-row{display:flex;gap:8px;flex-wrap:wrap}
+.setup-row input{flex:1;min-width:200px;padding:8px 12px;background:var(--s1);border:1px solid var(--bd2);border-radius:var(--rs);color:var(--tx);font-size:13px;outline:none}
+.setup-row input:focus{border-color:var(--blue)}
+.setup-row input::placeholder{color:var(--tx3)}
+
+/* BUTTONS */
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:5px;padding:7px 14px;border-radius:var(--rs);border:1px solid var(--bd2);background:var(--s2);color:var(--tx);font-size:13px;font-weight:500;cursor:pointer;transition:.15s;white-space:nowrap;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.btn:active{transform:scale(.97);opacity:.85}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-green{background:var(--green);border-color:var(--green);color:#000;font-weight:600}
+.btn-green:active{background:var(--gd)}
+.btn-sm{padding:5px 10px;font-size:12px}
+.btn-xs{padding:3px 7px;font-size:11px}
+.btn-ico{padding:6px 8px;font-size:13px}
+.btn-full{width:100%}
+
+/* MAIN TABS */
+.main-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:var(--s1);border-radius:var(--r);padding:3px;margin-bottom:16px}
+.main-tab{padding:8px 4px;border-radius:var(--rs);border:none;cursor:pointer;font-size:12px;font-weight:500;background:transparent;color:var(--tx2);transition:.15s;text-align:center;-webkit-tap-highlight-color:transparent}
+.main-tab.active{background:var(--s3);color:var(--tx);font-weight:600}
+
+/* SUB TABS (inside Home) */
+.sub-tabs{display:flex;gap:2px;background:var(--s2);border-radius:var(--rs);padding:3px;margin-bottom:14px;width:fit-content}
+.sub-tab{padding:5px 14px;border-radius:4px;border:none;cursor:pointer;font-size:12px;font-weight:500;background:transparent;color:var(--tx2);transition:.15s;-webkit-tap-highlight-color:transparent}
+.sub-tab.active{background:var(--s3);color:var(--tx)}
+
+/* SECTION HEADER */
+.sec-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:10px}
+.sec-head h2{font-size:13px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.5px}
+
+/* CATEGORY ACCORDION */
+.cat-block{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);margin-bottom:8px;overflow:hidden}
+.cat-head{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none}
+.cat-head:active{background:var(--s2)}
+.cat-dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.cat-head-name{flex:1;font-size:14px;font-weight:600}
+.cat-head-meta{font-size:11px;color:var(--tx3)}
+.cat-chevron{font-size:11px;color:var(--tx3);transition:.2s;flex-shrink:0}
+.cat-block.open .cat-chevron{transform:rotate(180deg)}
+.cat-body{display:none;border-top:1px solid var(--bd);padding:8px}
+.cat-block.open .cat-body{display:block}
+
+/* HABIT ROW (in categories) */
+.h-row{display:flex;align-items:center;gap:8px;padding:9px 10px;border-radius:var(--rs);border:1px solid var(--bd);background:var(--s2);margin-bottom:5px;transition:.15s}
+.h-row:last-child{margin-bottom:0}
+.h-row-name{flex:1;font-size:13px}
+.tracked-pill{font-size:10px;padding:2px 7px;border-radius:20px;background:var(--gbg);color:var(--green);font-weight:600;flex-shrink:0}
+.add-habit-row{display:flex;gap:6px;margin-top:8px}
+.add-habit-row input{flex:1;padding:7px 10px;background:var(--s1);border:1px solid var(--bd2);border-radius:var(--rs);color:var(--tx);font-size:13px;outline:none}
+.add-habit-row input:focus{border-color:var(--green)}
+.add-habit-row input::placeholder{color:var(--tx3)}
+
+/* ── HOME / ACTIVE HABITS LIST ── */
+.active-habit-row{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
+.ahr-left{flex:1;min-width:0}
+.ahr-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ahr-cat{font-size:11px;color:var(--tx2);margin-top:2px}
+.ahr-bar-wrap{height:5px;background:var(--s3);border-radius:3px;margin-top:8px;overflow:hidden}
+.ahr-bar-fill{height:100%;border-radius:3px;transition:width .4s ease}
+.ahr-stats{display:flex;gap:10px;margin-top:5px;flex-wrap:wrap}
+.ahr-stat{font-size:11px;color:var(--tx2)}
+.ahr-stat strong{color:var(--tx);font-weight:600}
+.ahr-right{display:flex;flex-direction:column;align-items:flex-end;gap:6px;flex-shrink:0}
+.ahr-pct{font-size:18px;font-weight:700;letter-spacing:-1px}
+.ahr-streak{font-size:11px;color:var(--amber);font-weight:600;white-space:nowrap}
+.mark-btn{font-size:11px;padding:5px 10px;border-radius:var(--rs);border:1px solid var(--bd2);background:var(--s2);color:var(--tx2);cursor:pointer;transition:.15s;white-space:nowrap;-webkit-tap-highlight-color:transparent}
+.mark-btn.done-today{background:var(--gbg);border-color:var(--green);color:var(--green)}
+.mark-btn:active{transform:scale(.96)}
+
+/* ── TRACKER TAB ── */
+.tracker-stats{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px}
+.tstat{background:var(--s1);border:1px solid var(--bd);border-radius:var(--rs);padding:10px 6px;text-align:center}
+.tstat-val{font-size:18px;font-weight:700;letter-spacing:-.5px;line-height:1.1}
+.tstat-lbl{font-size:10px;color:var(--tx2);margin-top:2px;text-transform:uppercase;letter-spacing:.3px}
+
+/* COMPACT HABIT CARD */
+.hcard{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);margin-bottom:10px;overflow:hidden}
+.hcard-header{display:flex;align-items:center;gap:10px;padding:12px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none}
+.hcard-header:active{background:var(--s2)}
+.hcard-hname{flex:1;font-size:14px;font-weight:600;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hcard-right{display:flex;align-items:center;gap:8px;flex-shrink:0}
+.hcard-pct{font-size:14px;font-weight:700}
+.hcard-streak{font-size:12px;color:var(--amber);font-weight:600}
+.hcard-body{border-top:1px solid var(--bd);padding:12px 14px;display:none}
+.hcard.expanded .hcard-body{display:block}
+.hcard-chevron{font-size:11px;color:var(--tx3);transition:.2s;flex-shrink:0}
+.hcard.expanded .hcard-chevron{transform:rotate(180deg)}
+
+/* DATE ROW compact */
+.date-compact{display:flex;align-items:center;gap:8px;background:var(--s2);border:1px solid var(--bd2);border-radius:var(--rs);padding:7px 10px;margin-bottom:10px;flex-wrap:wrap}
+.date-compact .dlbl{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.4px;color:var(--tx2);flex-shrink:0}
+.date-compact input[type=date]{background:transparent;border:none;color:var(--tx);font-size:13px;font-weight:600;font-family:var(--font);outline:none;cursor:pointer;color-scheme:dark;flex-shrink:0}
+.date-compact .dend{font-size:11px;color:var(--tx2);margin-left:auto}
+.date-compact .dend strong{color:var(--tx)}
+
+/* PROGRESS compact */
+.prog-compact{margin-bottom:10px}
+.prog-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.prog-top span{font-size:11px;color:var(--tx2)}
+.prog-top strong{font-size:12px;font-weight:700}
+.pbar{height:6px;background:var(--s3);border-radius:3px;overflow:hidden}
+.pbar-fill{height:100%;border-radius:3px;transition:width .4s ease}
+.prog-nums{display:flex;gap:12px;margin-top:5px}
+.prog-nums span{font-size:11px;color:var(--tx2)}
+.prog-nums strong{color:var(--tx)}
+
+/* 66 GRID compact */
+.grid-wrap{margin-bottom:4px}
+.grid-lbl{font-size:10px;color:var(--tx3);margin-bottom:5px;display:flex;justify-content:space-between}
+.days-grid{display:grid;grid-template-columns:repeat(11,1fr);gap:3px}
+@media(max-width:380px){.days-grid{grid-template-columns:repeat(9,1fr)}}
+.dc{aspect-ratio:1;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;cursor:pointer;transition:.12s;border:1px solid transparent;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
+.dc:not(.future):active{transform:scale(1.15)}
+.dc.done{background:var(--green);color:#000}
+.dc.today{border-color:var(--green);color:var(--green);background:var(--gbg);animation:ring 2s ease-in-out infinite}
+.dc.missed{background:var(--s3);color:var(--tx4)}
+.dc.future{background:var(--s2);color:var(--tx4);opacity:.35;cursor:default}
+@keyframes ring{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 2px rgba(34,197,94,.15)}}
+
+/* CARD ACTIONS */
+.hcard-actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+
+/* DONE BANNER */
+.done-banner{background:var(--gbg);border:1px solid var(--gd);border-radius:var(--r);padding:14px 16px;display:flex;align-items:center;gap:12px;margin-bottom:10px}
+.done-banner .ico{font-size:24px;flex-shrink:0}
+.done-banner h4{font-size:14px;font-weight:700;color:var(--green)}
+.done-banner p{font-size:11px;color:var(--tx2);margin-top:2px}
+
+/* ANALYTICS */
+.ana-card{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:14px;margin-bottom:10px}
+.ana-title{font-size:12px;font-weight:600;color:var(--tx2);text-transform:uppercase;letter-spacing:.5px;margin-bottom:12px}
+.bar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+.bar-lbl{font-size:11px;color:var(--tx2);width:110px;flex-shrink:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.bar-track{flex:1;height:6px;background:var(--s3);border-radius:3px;overflow:hidden}
+.bar-fill{height:100%;border-radius:3px;transition:width .5s ease}
+.bar-val{font-size:11px;color:var(--tx2);width:30px;text-align:right;flex-shrink:0}
+
+/* MODALS */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:100;display:flex;align-items:flex-end;justify-content:center;padding:0}
+@media(min-width:480px){.overlay{align-items:center;padding:16px}}
+.modal{background:var(--s1);border:1px solid var(--bd2);border-radius:14px 14px 0 0;padding:20px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto}
+@media(min-width:480px){.modal{border-radius:var(--r)}}
+.modal h3{font-size:16px;font-weight:700;margin-bottom:14px}
+.modal-foot{display:flex;gap:8px;justify-content:flex-end;margin-top:16px}
+.fg{display:flex;flex-direction:column;gap:4px;margin-bottom:12px}
+.fg label{font-size:11px;color:var(--tx2);font-weight:600;text-transform:uppercase;letter-spacing:.4px}
+.fg input,.fg select{padding:9px 12px;background:var(--s2);border:1px solid var(--bd2);border-radius:var(--rs);color:var(--tx);font-size:14px;outline:none;transition:.15s;width:100%;-webkit-appearance:none;color-scheme:dark}
+.fg input:focus,.fg select:focus{border-color:var(--green)}
+.fg input::placeholder{color:var(--tx3)}
+.color-swatches{display:flex;gap:8px;flex-wrap:wrap;margin-top:6px}
+.swatch{width:28px;height:28px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:.15s;-webkit-tap-highlight-color:transparent}
+.swatch.active,.swatch:hover{border-color:white;transform:scale(1.15)}
+
+/* TOAST */
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--s3);border:1px solid var(--bd2);border-radius:var(--rs);padding:10px 16px;font-size:13px;z-index:200;opacity:0;transition:.2s;white-space:nowrap;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.toast.ok{border-color:var(--green);color:var(--green)}
+.toast.err{border-color:var(--red);color:var(--red)}
+
+/* EMPTY / LOADING */
+.loading{text-align:center;padding:48px 20px;color:var(--tx2)}
+.spinner{width:24px;height:24px;border:2px solid var(--bd2);border-top-color:var(--green);border-radius:50%;animation:spin .7s linear infinite;margin:0 auto 10px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty{text-align:center;padding:40px 20px;color:var(--tx2)}
+.empty .eico{font-size:32px;margin-bottom:10px}
+.empty h3{font-size:14px;color:var(--tx);font-weight:600;margin-bottom:6px}
+.empty p{font-size:12px;line-height:1.6}
+
+/* UTILS */
+.row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.ml{margin-left:auto}
+.mt8{margin-top:8px}
+.mt12{margin-top:12px}
+.divider{height:1px;background:var(--bd);margin:10px 0}
+.tag{display:inline-block;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:var(--bd2);border-radius:2px}
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- TOPBAR -->
+  <div class="topbar">
+    <div>
+      <h1>🌱 Habit Tracker</h1>
+    </div>
+    <div class="topbar-right">
+      <div class="status-chip loading" id="statusChip"><span class="dot"></span><span id="statusTxt">Connecting…</span></div>
+      <button class="btn btn-sm btn-green" id="btnRefresh">↻ Sync</button>
+    </div>
+  </div>
+
+  <!-- MAIN TABS -->
+  <div class="main-tabs">
+    <button class="main-tab active" data-tab="home">🏠 Home</button>
+    <button class="main-tab" data-tab="track">📊 Tracker</button>
+    <button class="main-tab" data-tab="ana">📈 Analytics</button>
+  </div>
+
+  <!-- ═══ HOME TAB ═══ -->
+  <div id="tab-home">
+    <!-- Sub tabs -->
+    <div class="sub-tabs">
+      <button class="sub-tab active" data-sub="active">Active Habits</button>
+      <button class="sub-tab" data-sub="all">All Habits</button>
+    </div>
+
+    <!-- ACTIVE HABITS -->
+    <div id="sub-active">
+      <div id="activeHabitsList">
+        <div class="loading"><div class="spinner"></div>Loading…</div>
+      </div>
+    </div>
+
+    <!-- ALL HABITS (categories) -->
+    <div id="sub-all" style="display:none">
+      <div class="sec-head">
+        <h2>Categories</h2>
+        <button class="btn btn-sm btn-green" id="btnAddCat">+ Category</button>
+      </div>
+      <div id="catList">
+        <div class="loading"><div class="spinner"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ TRACKER TAB ═══ -->
+  <div id="tab-track" style="display:none">
+    <div class="tracker-stats" id="trackerStats" style="display:none"></div>
+    <div id="trackerList">
+      <div class="empty"><div class="eico">📋</div><h3>Nothing tracked yet</h3>
+        <p>Go to <strong>Home → All Habits</strong>, find a habit and tap <strong>Track →</strong></p></div>
+    </div>
+  </div>
+
+  <!-- ═══ ANALYTICS TAB ═══ -->
+  <div id="tab-ana" style="display:none">
+    <div id="anaContent">
+      <div class="empty"><div class="eico">📊</div><h3>No data yet</h3><p>Start tracking to see stats.</p></div>
+    </div>
+  </div>
+
+</div><!-- /app -->
+
+<div class="toast" id="toast"></div>
+
+<!-- ADD CATEGORY MODAL -->
+<div class="overlay" id="mAddCat" style="display:none">
+  <div class="modal">
+    <h3>Add category</h3>
+    <div class="fg">
+      <label>Name</label>
+      <input type="text" id="inCatName" placeholder="e.g. Spiritual Development" maxlength="50">
+    </div>
+    <div class="fg">
+      <label>Colour</label>
+      <div class="color-swatches" id="colorSwatches"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-sm" onclick="closeModal('mAddCat')">Cancel</button>
+      <button class="btn btn-sm btn-green" id="btnConfirmCat">Add</button>
+    </div>
+  </div>
+</div>
+
+<!-- START TRACKING MODAL -->
+<div class="overlay" id="mStartTrack" style="display:none">
+  <div class="modal">
+    <h3>Start tracking</h3>
+    <p style="font-size:13px;color:var(--tx2);margin-bottom:14px">Habit: <strong id="mTrackName" style="color:var(--tx)"></strong></p>
+    <div class="fg">
+      <label>📅 Start date (Day 1 of 66)</label>
+      <input type="date" id="inStartDate" style="color-scheme:dark">
+    </div>
+    <p style="font-size:11px;color:var(--tx3);margin-top:-6px">You can pick a past date if you've already started.</p>
+    <div class="modal-foot">
+      <button class="btn btn-sm" onclick="closeModal('mStartTrack')">Cancel</button>
+      <button class="btn btn-sm btn-green" id="btnConfirmTrack">Start 66-day journey →</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  CONFIG — URL hardcoded, no setup UI needed
+// ═══════════════════════════════════════════════
+const CFG_KEY = 'ht_api_v1';
+// Pre-fill from localStorage so user doesn't need to re-enter after page reload
+let API_URL = localStorage.getItem(CFG_KEY) || 'https://script.google.com/macros/s/AKfycbwRg79iVnBf9c-fHt4lIRitemidud02tC-KXYUvEHIxtYx3IQHSjAKPFccydoF9Bo3y/exec';
+// Always persist it
+localStorage.setItem(CFG_KEY, API_URL);
+
+// ── STATE (always fetched fresh from Sheets, never cached) ──
+let D = { categories:[], habits:[], tracking:[] };
+let activeCatOpenId = null;
+let pendingTrack = {};
+let selColor = '#22c55e';
+const COLORS = ['#22c55e','#3b82f6','#f59e0b','#ef4444','#a855f7','#06b6d4','#f97316','#ec4899','#84cc16','#14b8a6'];
+// Track which habit cards are expanded so re-renders don't collapse them
+const expandedCards = new Set();
+
+// ═══════════════════════════════════════════════
+//  API — ALL DATA FROM GOOGLE SHEETS, NO LOCALSTORAGE CACHE
+// ═══════════════════════════════════════════════
+async function apiGet() {
+  if (!API_URL) throw new Error('No API URL');
+  const r = await fetch(API_URL + '?t=' + Date.now(), { method:'GET', cache:'no-store' });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || 'API error');
+  return j;
+}
+
+async function apiPost(action, data) {
+  if (!API_URL) throw new Error('No API URL');
+  const r = await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action, data }),
+    headers: { 'Content-Type': 'text/plain' }
+  });
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  const j = await r.json();
+  if (!j.ok) throw new Error(j.error || 'API error');
+  return j;
+}
+
+// ═══════════════════════════════════════════════
+//  REFRESH — always pull from Sheets
+// ═══════════════════════════════════════════════
+async function refresh(silent) {
+  if (!API_URL) { setStatus('err','Not connected'); return; }
+  if (!silent) setStatus('loading','Syncing…');
+  try {
+    const res = await apiGet();
+    D.categories = res.categories || [];
+    D.habits     = res.habits     || [];
+    D.tracking   = res.tracking   || [];
+    setStatus('ok','Connected');
+    renderAll();
+  } catch(e) {
+    setStatus('err','Error');
+    if (!silent) toast('Load failed: '+e.message,'err');
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  STATUS
+// ═══════════════════════════════════════════════
+function setStatus(type, msg) {
+  const chip = document.getElementById('statusChip');
+  chip.className = 'status-chip ' + type;
+  document.getElementById('statusTxt').textContent = msg;
+}
+
+// ═══════════════════════════════════════════════
+//  DATE HELPERS
+// ═══════════════════════════════════════════════
+function todayStr() {
+  const d=new Date();
+  return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate());
+}
+function p2(n){return String(n).padStart(2,'0')}
+
+// normalizeDate: converts ANY date format from Google Sheets → YYYY-MM-DD
+// Handles: "2026-07-25", "2026-07-25T00:00:00.000Z", "25/07/2026", "07/25/2026",
+//          "25-Jul-2026", "Jul 25, 2026", Date objects, Excel serial numbers
+function normalizeDate(raw) {
+  if (!raw) return todayStr();
+  // Already YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(String(raw))) return String(raw);
+  // ISO with time component
+  if (/^\d{4}-\d{2}-\d{2}T/.test(String(raw))) return String(raw).slice(0,10);
+  // Excel serial number (number of days since 1899-12-30)
+  if (typeof raw === 'number' || /^\d{5}$/.test(String(raw))) {
+    const n = typeof raw === 'number' ? raw : parseInt(raw);
+    const d = new Date(Date.UTC(1899,11,30) + n * 86400000);
+    return d.getUTCFullYear()+'-'+p2(d.getUTCMonth()+1)+'-'+p2(d.getUTCDate());
+  }
+  // DD/MM/YYYY (Indian format from Sheets)
+  const dmySlash = String(raw).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (dmySlash) {
+    const [,d,m,y] = dmySlash;
+    // Disambiguate: if first number > 12, it must be day
+    if (parseInt(d) > 12) return `${y}-${p2(m)}-${p2(d)}`;
+    // Otherwise assume DD/MM/YYYY (Indian locale)
+    return `${y}-${p2(m)}-${p2(d)}`;
+  }
+  // Try native Date parse as last resort
+  const parsed = new Date(String(raw));
+  if (!isNaN(parsed)) {
+    return parsed.getFullYear()+'-'+p2(parsed.getMonth()+1)+'-'+p2(parsed.getDate());
+  }
+  return todayStr();
+}
+
+function daysBetween(a,b){return Math.round((new Date(b+' 00:00:00')-new Date(a+' 00:00:00'))/86400000)}
+function dayIdx(sd){return daysBetween(normalizeDate(sd),todayStr())}
+function addDays(ds,n){const d=new Date(normalizeDate(ds)+' 00:00:00');d.setDate(d.getDate()+n);return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())}
+function fmtDate(ds){if(!ds)return'';const nd=normalizeDate(ds);return new Date(nd+' 00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}
+function fmtShort(ds){if(!ds)return'';const nd=normalizeDate(ds);return new Date(nd+' 00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})}
+
+// ═══════════════════════════════════════════════
+//  STREAK / PCT
+// ═══════════════════════════════════════════════
+function streak(chk){
+  if(!chk||!chk.length)return 0;
+  const s=[...chk].sort((a,b)=>b-a);let n=0,e=s[0];
+  for(const d of s){if(d===e){n++;e--;}else break;}return n;
+}
+function pct(chk){return chk&&chk.length?Math.min(100,Math.round(chk.length/66*100)):0}
+function adherence(chk, sd) {
+  const elapsed = Math.min(Math.max(dayIdx(sd)+1, 0), 66);
+  if (!elapsed) return 0;
+  return Math.min(100, Math.round((chk.length / elapsed) * 100));
+}
+
+// ═══════════════════════════════════════════════
+//  RENDER ALL
+// ═══════════════════════════════════════════════
+function renderAll(){
+  renderActiveHabits();
+  renderCategories();
+  renderTracker();
+  renderAnalytics();
+}
+
+// ═══════════════════════════════════════════════
+//  HOME — ACTIVE HABITS
+// ═══════════════════════════════════════════════
+function renderActiveHabits(){
+  const el = document.getElementById('activeHabitsList');
+  const today = todayStr();
+
+  if(!D.tracking.length){
+    el.innerHTML=`<div class="empty"><div class="eico">🌱</div><h3>No active habits</h3>
+      <p>Go to <strong>All Habits</strong> tab, pick a habit and tap <strong>Track →</strong></p></div>`;
+    return;
+  }
+
+  let html='';
+  for(const t of D.tracking){
+    const chk = t.checked_days||[];
+    const sd  = normalizeDate(t.start_date);
+    const dI  = dayIdx(sd);
+    const strk = streak(chk);
+    const adh  = adherence(chk, sd);
+    const elapsed = Math.min(Math.max(dI+1,0),66);
+    const daysLeft = Math.max(66-chk.length,0);
+    const isDoneToday = chk.includes(dI) && dI>=0 && dI<66;
+    const isBuilt = chk.length>=66;
+    const cat = D.categories.find(c=>c.name===t.category_name);
+    const color = cat?(cat.color||'#22c55e'):'#22c55e';
+    const p = pct(chk);
+
+    html+=`<div class="active-habit-row">
+      <div class="ahr-left">
+        <div class="ahr-name">${esc(t.habit_name)}</div>
+        <div class="ahr-cat">${esc(t.category_name)} · Day <strong style="color:var(--tx)">${elapsed}</strong> of 66 · ${daysLeft} left</div>
+        <div class="ahr-bar-wrap">
+          <div class="ahr-bar-fill" style="width:${p}%;background:${color}"></div>
+        </div>
+        <div class="ahr-stats">
+          <span class="ahr-stat">✅ <strong>${chk.length}</strong> done</span>
+          <span class="ahr-stat">📅 Started ${fmtShort(sd)}</span>
+          ${isBuilt?'<span class="ahr-stat" style="color:var(--green)">🏆 Built!</span>':''}
+        </div>
+      </div>
+      <div class="ahr-right">
+        <div class="ahr-pct" style="color:${color}">${adh}%</div>
+        ${strk>0?`<div class="ahr-streak">🔥 ${strk}d streak</div>`:'<div class="ahr-streak" style="color:var(--tx3)">No streak</div>'}
+        ${!isBuilt&&dI>=0&&dI<66?`<button class="mark-btn${isDoneToday?' done-today':''}" onclick="quickMark('${esc2(t.id)}')">
+          ${isDoneToday?'✓ Done':'+ Today'}
+        </button>`:''}
+      </div>
+    </div>`;
+  }
+  el.innerHTML = html;
+}
+
+async function quickMark(trackingId){
+  const entry = D.tracking.find(t=>t.id===trackingId);
+  if(!entry) return;
+  const dI = dayIdx(entry.start_date);
+  if(dI<0||dI>=66) return;
+  const chk = [...(entry.checked_days||[])];
+  const i = chk.indexOf(dI);
+  i===-1?chk.push(dI):chk.splice(i,1);
+  entry.checked_days = chk;
+  renderActiveHabits();renderTracker();renderAnalytics();
+  try{
+    await apiPost('toggle_day',{id:trackingId,checked_days:chk});
+  }catch(e){
+    toast('Save failed: '+e.message,'err');
+    await refresh(true);
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  HOME — ALL HABITS (categories)
+// ═══════════════════════════════════════════════
+function renderCategories(){
+  const el = document.getElementById('catList');
+  if(!D.categories.length){
+    el.innerHTML=`<div class="empty" style="padding:24px"><div class="eico">📂</div><h3>No categories yet</h3><p>Tap <strong>+ Category</strong> to add one.</p></div>`;
+    return;
+  }
+  let html='';
+  for(const c of D.categories){
+    const catHabits = D.habits.filter(h=>h.category_id===c.id);
+    const isOpen = activeCatOpenId===c.id;
+    html+=`<div class="cat-block${isOpen?' open':''}" id="cb_${c.id}">
+      <div class="cat-head" onclick="toggleCat('${esc2(c.id)}')">
+        <div class="cat-dot" style="background:${esc(c.color||'#22c55e')}"></div>
+        <div class="cat-head-name">${esc(c.name)}</div>
+        <div class="cat-head-meta">${catHabits.length} habit${catHabits.length!==1?'s':''}</div>
+        <button class="btn btn-xs" onclick="event.stopPropagation();deleteCat('${esc2(c.id)}','${esc2(c.name)}')" style="color:var(--tx3);padding:2px 6px;margin-right:2px">✕</button>
+        <span class="cat-chevron">▼</span>
+      </div>
+      <div class="cat-body">
+        ${catHabits.length?catHabits.map(h=>{
+          const tracked=D.tracking.find(t=>t.habit_id===h.id);
+          return `<div class="h-row">
+            <div class="h-row-name">${esc(h.name)}</div>
+            ${tracked?`<span class="tracked-pill">✓ Active</span>`
+              :`<button class="btn btn-xs btn-green" onclick="openStartTrack('${esc2(h.id)}','${esc2(h.name)}','${esc2(c.name)}')">Track →</button>`}
+            <button class="btn-ico btn" onclick="deleteHabit('${esc2(h.id)}','${esc2(h.name)}')" style="color:var(--tx3);padding:4px 7px;font-size:12px">✕</button>
+          </div>`;
+        }).join(''):'<p style="font-size:12px;color:var(--tx3);padding:4px 0 8px">No habits yet.</p>'}
+        <div class="add-habit-row">
+          <input type="text" id="hin_${c.id}" placeholder="Add habit…" maxlength="80" onkeydown="if(event.key==='Enter')addHabitInline('${esc2(c.id)}','${esc2(c.name)}')">
+          <button class="btn btn-sm btn-green" onclick="addHabitInline('${esc2(c.id)}','${esc2(c.name)}')">+</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  el.innerHTML=html;
+}
+
+function toggleCat(id){
+  activeCatOpenId = activeCatOpenId===id ? null : id;
+  renderCategories();
+}
+
+async function addHabitInline(catId, catName){
+  const inp = document.getElementById('hin_'+catId);
+  if(!inp) return;
+  const name = inp.value.trim();
+  if(!name){inp.focus();return;}
+  inp.disabled=true;
+  try{
+    await apiPost('add_habit',{category_id:catId,category_name:catName,name});
+    toast('Habit added ✓','ok');
+    await refresh(true);
+  }catch(e){toast('Error: '+e.message,'err');inp.disabled=false;}
+}
+
+async function deleteCat(id,name){
+  if(!confirm(`Delete "${name}" and all its habits?`)) return;
+  try{await apiPost('delete_category',{id});toast('Deleted','ok');await refresh(true);}
+  catch(e){toast('Error: '+e.message,'err');}
+}
+
+async function deleteHabit(id,name){
+  if(!confirm(`Delete habit "${name}"?`)) return;
+  try{await apiPost('delete_habit',{id});toast('Deleted','ok');await refresh(true);}
+  catch(e){toast('Error: '+e.message,'err');}
+}
+
+// ═══════════════════════════════════════════════
+//  TRACKER TAB
+// ═══════════════════════════════════════════════
+function renderTracker(){
+  const entries = D.tracking;
+  const statsEl = document.getElementById('trackerStats');
+  const listEl  = document.getElementById('trackerList');
+
+  if(!entries.length){
+    statsEl.style.display='none';
+    listEl.innerHTML=`<div class="empty"><div class="eico">📋</div><h3>Nothing tracked yet</h3>
+      <p>Go to <strong>Home → All Habits</strong> and tap <strong>Track →</strong> on any habit.</p></div>`;
+    return;
+  }
+
+  // Stats row (4 in one row)
+  let totalDone=0,totalPoss=0,bestStrk=0,built=0;
+  entries.forEach(t=>{
+    const chk=t.checked_days||[];
+    const poss=Math.max(Math.min(dayIdx(t.start_date)+1,66),0);
+    totalDone+=chk.length;totalPoss+=poss;
+    bestStrk=Math.max(bestStrk,streak(chk));
+    if(chk.length>=66)built++;
+  });
+  const overall=totalPoss>0?Math.round(totalDone/totalPoss*100):0;
+  statsEl.style.display='grid';
+  statsEl.innerHTML=`
+    <div class="tstat"><div class="tstat-val" style="color:var(--green)">${entries.length}</div><div class="tstat-lbl">Active</div></div>
+    <div class="tstat"><div class="tstat-val" style="color:var(--amber)">${bestStrk}🔥</div><div class="tstat-lbl">Best streak</div></div>
+    <div class="tstat"><div class="tstat-val" style="color:var(--green)">${overall}%</div><div class="tstat-lbl">Rate</div></div>
+    <div class="tstat"><div class="tstat-val" style="color:var(--blue)">${built}</div><div class="tstat-lbl">Built</div></div>`;
+
+  let html='';
+  for(const t of entries){
+    const chk = t.checked_days||[];
+    const sd  = normalizeDate(t.start_date);  // ← normalize date from Sheets
+    const dI  = dayIdx(sd);
+    const strk = streak(chk);
+    const p   = pct(chk);
+    const adh = adherence(chk, sd);
+    const endDate = addDays(sd,65);
+    const elapsed = Math.min(Math.max(dI+1,0),66);
+    const daysLeft = Math.max(66-chk.length,0);
+    const isBuilt = chk.length>=66;
+    const isDoneToday = chk.includes(dI)&&dI>=0&&dI<66;
+    const cat   = D.categories.find(c=>c.name===t.category_name);
+    const color = cat?(cat.color||'#22c55e'):'#22c55e';
+    const cardId = 'hc_'+t.id;
+    const isExpanded = expandedCards.has(cardId);  // ← restore expanded state
+
+    if(isBuilt){
+      html+=`<div class="done-banner">
+        <div class="ico">🏆</div>
+        <div><h4>${esc(t.habit_name)}</h4><p>${fmtDate(sd)} → ${fmtDate(endDate)}</p></div>
+        <button class="btn btn-xs ml" onclick="removeTracking('${esc2(t.id)}')">Remove</button>
+      </div>`;
+      continue;
+    }
+
+    // 66 cells — pass event so stopPropagation works
+    let cells='';
+    for(let d=0;d<66;d++){
+      const isDone=chk.includes(d),isToday=d===dI,isFuture=d>dI;
+      let cls='dc ';
+      if(isDone)cls+='done';else if(isToday)cls+='today';else if(isFuture)cls+='future';else cls+='missed';
+      cells+=`<div class="${cls}" title="Day ${d+1}·${fmtShort(addDays(sd,d))}" ${!isFuture?`onclick="toggleDay('${esc2(t.id)}',${d},event)"`:''} >${d+1}</div>`;
+    }
+
+    html+=`<div class="hcard${isExpanded?' expanded':''}" id="${cardId}">
+      <div class="hcard-header" onclick="toggleCard('${cardId}')">
+        <div style="width:8px;height:8px;border-radius:50%;background:${color};flex-shrink:0"></div>
+        <div class="hcard-hname">${esc(t.habit_name)}</div>
+        <div class="hcard-right">
+          <span class="hcard-streak">${strk>0?'🔥'+strk:''}</span>
+          <span class="hcard-pct" style="color:${color}">${adh}%</span>
+          <span class="hcard-chevron">▼</span>
+        </div>
+      </div>
+      <div class="hcard-body">
+        <!-- date row — value uses normalized YYYY-MM-DD so input renders correctly -->
+        <div class="date-compact">
+          <span class="dlbl">📅 Start</span>
+          <input type="date" value="${sd}" max="${todayStr()}" onclick="event.stopPropagation()" onchange="updateStartDate('${esc2(t.id)}',this.value)">
+          <span class="dend">End: <strong>${fmtShort(endDate)}</strong> · Day <strong>${elapsed}</strong>/66</span>
+        </div>
+        <!-- progress -->
+        <div class="prog-compact">
+          <div class="prog-top">
+            <span>Progress · <strong>${chk.length}/66 days</strong></span>
+            <strong style="color:${color}">${p}% complete · ${adh}% adherence</strong>
+          </div>
+          <div class="pbar"><div class="pbar-fill" style="width:${p}%;background:${color}"></div></div>
+          <div class="prog-nums">
+            <span>✅ <strong>${chk.length}</strong> done</span>
+            <span>⏳ <strong>${daysLeft}</strong> left</span>
+            <span>📆 Day <strong>${elapsed}</strong> of 66</span>
+          </div>
+        </div>
+        <!-- grid -->
+        <div class="grid-wrap" onclick="event.stopPropagation()">
+          <div class="grid-lbl"><span>Tap to mark done/undo</span><span>${fmtShort(sd)} → ${fmtShort(endDate)}</span></div>
+          <div class="days-grid">${cells}</div>
+        </div>
+        <!-- actions -->
+        <div class="hcard-actions" onclick="event.stopPropagation()">
+          <button class="btn btn-sm ${isDoneToday?'':'btn-green'}" onclick="toggleTodayQuick('${esc2(t.id)}',event)" ${dI<0||dI>=66?'disabled':''}>
+            ${isDoneToday?'✓ Done today':'+ Mark today'}
+          </button>
+          <button class="btn btn-sm ml" style="color:var(--red);border-color:var(--red)" onclick="removeTracking('${esc2(t.id)}')">✕ Remove</button>
+        </div>
+      </div>
+    </div>`;
+  }
+  listEl.innerHTML=html;
+}
+
+function toggleCard(id){
+  if(expandedCards.has(id)) expandedCards.delete(id);
+  else expandedCards.add(id);
+  // Toggle the class directly without full re-render
+  const el=document.getElementById(id);
+  if(el) el.classList.toggle('expanded');
+}
+
+async function toggleDay(tid, d, evt){
+  if(evt){ evt.stopPropagation(); }
+  const entry=D.tracking.find(t=>t.id===tid);
+  if(!entry)return;
+  const chk=[...(entry.checked_days||[])];
+  const i=chk.indexOf(d); i===-1?chk.push(d):chk.splice(i,1);
+  entry.checked_days=chk;
+  // Patch the clicked cell directly — no full re-render so card stays open
+  patchDayCell(tid, d, chk);
+  // Update the progress/meta inside the card
+  patchCardProgress(tid, entry);
+  // Refresh home list and analytics (they don't affect tracker card state)
+  renderActiveHabits();
+  renderAnalytics();
+  try{await apiPost('toggle_day',{id:tid,checked_days:chk});}
+  catch(e){toast('Save failed','err');await refresh(true);}
+}
+
+function patchDayCell(tid, dayNum, chk){
+  const cardEl = document.getElementById('hc_'+tid);
+  if(!cardEl) return;
+  const entry = D.tracking.find(t=>t.id===tid);
+  if(!entry) return;
+  const sd = normalizeDate(entry.start_date||todayStr());
+  const dI = dayIdx(sd);
+  // Re-render just the grid
+  const gridEl = cardEl.querySelector('.days-grid');
+  if(!gridEl) return;
+  let cells='';
+  for(let d=0;d<66;d++){
+    const isDone=chk.includes(d),isToday=d===dI,isFuture=d>dI;
+    let cls='dc ';
+    if(isDone)cls+='done';else if(isToday)cls+='today';else if(isFuture)cls+='future';else cls+='missed';
+    cells+=`<div class="${cls}" title="Day ${d+1}·${fmtShort(addDays(sd,d))}" ${!isFuture?`onclick="toggleDay('${esc2(tid)}',${d},event)"`:''} >${d+1}</div>`;
+  }
+  gridEl.innerHTML=cells;
+}
+
+function patchCardProgress(tid, entry){
+  const cardEl = document.getElementById('hc_'+tid);
+  if(!cardEl) return;
+  const chk = entry.checked_days||[];
+  const sd  = normalizeDate(entry.start_date);
+  const dI  = dayIdx(sd);
+  const p   = pct(chk);
+  const adh = adherence(chk, sd);
+  const elapsed = Math.min(Math.max(dI+1,0),66);
+  const daysLeft = Math.max(66-chk.length,0);
+  const isDoneToday = chk.includes(dI)&&dI>=0&&dI<66;
+  const cat = D.categories.find(c=>c.name===entry.category_name);
+  const color = cat?(cat.color||'#22c55e'):'#22c55e';
+  // Update pct in header
+  const pctEl = cardEl.querySelector('.hcard-pct');
+  if(pctEl) pctEl.textContent = adh+'%';
+  // Update streak in header
+  const strk = streak(chk);
+  const strkEl = cardEl.querySelector('.hcard-streak');
+  if(strkEl) strkEl.textContent = strk>0 ? '🔥'+strk : '';
+  // Update progress bar fill
+  const fillEl = cardEl.querySelector('.pbar-fill');
+  if(fillEl) fillEl.style.width = p+'%';
+  // Update prog-top text
+  const progTopEls = cardEl.querySelectorAll('.prog-top strong');
+  if(progTopEls[0]) progTopEls[0].textContent = chk.length+'/66 days';
+  // Update prog-nums
+  const numsEl = cardEl.querySelector('.prog-nums');
+  if(numsEl) numsEl.innerHTML=`<span>✅ <strong>${chk.length}</strong> done</span><span>⏳ <strong>${daysLeft}</strong> left</span><span>📆 Day <strong>${elapsed}</strong> of 66</span>`;
+  // Update mark today button
+  const markBtn = cardEl.querySelector('.hcard-actions .btn-sm:first-child');
+  if(markBtn){
+    markBtn.className = `btn btn-sm ${isDoneToday?'':'btn-green'}`;
+    markBtn.textContent = isDoneToday?'✓ Done today':'+ Mark today';
+    markBtn.disabled = dI<0||dI>=66;
+  }
+}
+
+async function toggleTodayQuick(tid, evt){
+  if(evt) evt.stopPropagation();
+  const entry=D.tracking.find(t=>t.id===tid);
+  if(!entry)return;
+  const dI=dayIdx(normalizeDate(entry.start_date));
+  if(dI<0||dI>=66)return;
+  await toggleDay(tid,dI,null);
+}
+
+async function updateStartDate(tid,newDate){
+  if(!newDate)return;
+  const entry=D.tracking.find(t=>t.id===tid);if(!entry)return;
+  const nd = normalizeDate(newDate);
+  const dI=dayIdx(nd);
+  const chk=(entry.checked_days||[]).filter(d=>d<=dI);
+  entry.start_date=nd; entry.checked_days=chk;
+  // Patch card in place instead of full re-render
+  patchDayCell(tid, -1, chk);   // -1 = just refresh grid
+  patchCardProgress(tid, entry);
+  renderActiveHabits(); renderAnalytics();
+  // Also update the end-date text in card
+  const cardEl=document.getElementById('hc_'+tid);
+  if(cardEl){
+    const endEl=cardEl.querySelector('.dend');
+    if(endEl) endEl.innerHTML=`End: <strong>${fmtShort(addDays(nd,65))}</strong> · Day <strong>${Math.min(Math.max(dI+1,0),66)}</strong>/66`;
+  }
+  try{await apiPost('update_start_date',{id:tid,start_date:nd,checked_days:chk});toast('Date updated','ok');}
+  catch(e){toast('Save failed','err');await refresh(true);}
+}
+
+async function removeTracking(tid){
+  if(!confirm('Stop tracking? Progress will be deleted.'))return;
+  D.tracking=D.tracking.filter(t=>t.id!==tid);
+  renderAll();
+  try{await apiPost('remove_tracking',{id:tid});toast('Removed','ok');}
+  catch(e){toast('Error','err');await refresh(true);}
+}
+
+// ═══════════════════════════════════════════════
+//  ANALYTICS
+// ═══════════════════════════════════════════════
+function renderAnalytics(){
+  const el=document.getElementById('anaContent');
+  if(!D.tracking.length){
+    el.innerHTML=`<div class="empty"><div class="eico">📊</div><h3>No data yet</h3><p>Start tracking to see stats.</p></div>`;
+    return;
+  }
+  const rows=D.tracking.map(t=>{
+    const chk=t.checked_days||[];
+    const cat=D.categories.find(c=>c.name===t.category_name);
+    return{name:t.habit_name,chk,p:pct(chk),adh:adherence(chk,t.start_date),strk:streak(chk),color:cat?(cat.color||'#22c55e'):'#22c55e'};
+  }).sort((a,b)=>b.adh-a.adh);
+
+  const totalCI=rows.reduce((s,r)=>s+r.chk.length,0);
+  const avgAdh=Math.round(rows.reduce((s,r)=>s+r.adh,0)/rows.length);
+
+  el.innerHTML=`
+    <div class="tracker-stats" style="margin-bottom:12px">
+      <div class="tstat"><div class="tstat-val" style="color:var(--green)">${totalCI}</div><div class="tstat-lbl">Check-ins</div></div>
+      <div class="tstat"><div class="tstat-val" style="color:var(--green)">${avgAdh}%</div><div class="tstat-lbl">Avg adherence</div></div>
+      <div class="tstat"><div class="tstat-val" style="color:var(--amber)">${rows.filter(r=>r.strk>0).length}</div><div class="tstat-lbl">Streaks</div></div>
+      <div class="tstat"><div class="tstat-val" style="color:var(--blue)">${rows.filter(r=>r.p>=100).length}</div><div class="tstat-lbl">Built</div></div>
+    </div>
+    <div class="ana-card">
+      <div class="ana-title">Adherence rate</div>
+      ${rows.map(r=>`<div class="bar-row">
+        <div class="bar-lbl" title="${esc(r.name)}">${esc(r.name)}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${r.adh}%;background:${r.color}"></div></div>
+        <div class="bar-val">${r.adh}%</div>
+      </div>`).join('')}
+    </div>
+    <div class="ana-card">
+      <div class="ana-title">Current streaks 🔥</div>
+      ${[...rows].sort((a,b)=>b.strk-a.strk).map(r=>`<div class="bar-row">
+        <div class="bar-lbl" title="${esc(r.name)}">${esc(r.name)}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.round(r.strk/66*100)}%;background:var(--amber)"></div></div>
+        <div class="bar-val">${r.strk}d</div>
+      </div>`).join('')||'<p style="font-size:12px;color:var(--tx3)">No active streaks yet.</p>'}
+    </div>`;
+}
+
+// ═══════════════════════════════════════════════
+//  MODALS
+// ═══════════════════════════════════════════════
+function openModal(id){document.getElementById(id).style.display='flex'}
+function closeModal(id){document.getElementById(id).style.display='none'}
+document.querySelectorAll('.overlay').forEach(o=>{
+  o.addEventListener('click',e=>{if(e.target===o)o.style.display='none'});
+});
+
+// Add category
+function openAddCat(){
+  selColor=COLORS[0];
+  document.getElementById('inCatName').value='';
+  document.getElementById('colorSwatches').innerHTML=COLORS.map(c=>
+    `<div class="swatch${c===selColor?' active':''}" style="background:${c}" onclick="pickColor('${c}',this)"></div>`).join('');
+  openModal('mAddCat');
+  setTimeout(()=>document.getElementById('inCatName').focus(),200);
+}
+function pickColor(c,el){
+  selColor=c;
+  document.querySelectorAll('.swatch').forEach(s=>s.classList.remove('active'));
+  el.classList.add('active');
+}
+document.getElementById('btnConfirmCat').addEventListener('click',async()=>{
+  const name=document.getElementById('inCatName').value.trim();
+  if(!name){toast('Enter a name','err');return;}
+  const btn=document.getElementById('btnConfirmCat');btn.disabled=true;btn.textContent='Adding…';
+  try{await apiPost('add_category',{name,color:selColor});closeModal('mAddCat');toast('Category added ✓','ok');await refresh(true);}
+  catch(e){toast('Error: '+e.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Add';}
+});
+document.getElementById('inCatName').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('btnConfirmCat').click()});
+
+// Start tracking
+function openStartTrack(habitId,habitName,catName){
+  pendingTrack={habitId,habitName,catName};
+  document.getElementById('mTrackName').textContent=habitName;
+  document.getElementById('inStartDate').value=todayStr();
+  document.getElementById('inStartDate').max=todayStr();
+  openModal('mStartTrack');
+}
+document.getElementById('btnConfirmTrack').addEventListener('click',async()=>{
+  const sd=document.getElementById('inStartDate').value;
+  if(!sd){toast('Pick a date','err');return;}
+  const btn=document.getElementById('btnConfirmTrack');btn.disabled=true;btn.textContent='Starting…';
+  try{
+    await apiPost('start_tracking',{habit_id:pendingTrack.habitId,habit_name:pendingTrack.habitName,category_name:pendingTrack.catName,start_date:sd});
+    closeModal('mStartTrack');toast('Tracking started ✓','ok');
+    await refresh(true);
+    switchMainTab('home');switchSubTab('active');
+  }catch(e){toast('Error: '+e.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Start 66-day journey →';}
+});
+
+// ═══════════════════════════════════════════════
+//  TABS
+// ═══════════════════════════════════════════════
+function switchMainTab(id){
+  document.querySelectorAll('.main-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector(`.main-tab[data-tab="${id}"]`).classList.add('active');
+  ['home','track','ana'].forEach(t=>document.getElementById('tab-'+t).style.display=t===id?'':'none');
+  if(id==='track')renderTracker();
+  if(id==='ana')renderAnalytics();
+}
+document.querySelectorAll('.main-tab').forEach(t=>t.addEventListener('click',()=>switchMainTab(t.dataset.tab)));
+
+function switchSubTab(id){
+  document.querySelectorAll('.sub-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelector(`.sub-tab[data-sub="${id}"]`).classList.add('active');
+  document.getElementById('sub-active').style.display=id==='active'?'':'none';
+  document.getElementById('sub-all').style.display=id==='all'?'':'none';
+}
+document.querySelectorAll('.sub-tab').forEach(t=>t.addEventListener('click',()=>switchSubTab(t.dataset.sub)));
+
+// ═══════════════════════════════════════════════
+//  TOAST
+// ═══════════════════════════════════════════════
+let toastT;
+function toast(msg,type=''){
+  const el=document.getElementById('toast');
+  el.textContent=msg;el.className=`toast ${type} show`;
+  clearTimeout(toastT);toastT=setTimeout(()=>el.className='toast',2800);
+}
+
+// ═══════════════════════════════════════════════
+//  ESC
+// ═══════════════════════════════════════════════
+function esc(s){return s?String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'):''}
+function esc2(s){return s?String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"):''}
+
+// ═══════════════════════════════════════════════
+//  BOOT
+// ═══════════════════════════════════════════════
+document.getElementById('btnAddCat').addEventListener('click', openAddCat);
+document.getElementById('btnRefresh').addEventListener('click', ()=>refresh(false));
+
+// Auto-connect on load — URL is hardcoded above
+refresh();
+</script>
+
+<!-- Code.gs content for download -->
+<pre id="codeGsContent" style="display:none">const SHEET_NAMES = {
+  categories: 'Categories',
+  habits:     'Habits',
+  tracking:   'Tracking'
+};
+
+function makeResponse(data) {
+  return ContentService
+    .createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function initSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  function ensureSheet(name, headers) {
+    let sheet = ss.getSheetByName(name);
+    if (!sheet) {
+      sheet = ss.insertSheet(name);
+      sheet.getRange(1,1,1,headers.length).setValues([headers]);
+      sheet.getRange(1,1,1,headers.length).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
+      sheet.setFrozenRows(1);
+    }
+    return sheet;
+  }
+  ensureSheet(SHEET_NAMES.categories, ['id','name','color','created_at']);
+  ensureSheet(SHEET_NAMES.habits,     ['id','category_id','category_name','name','created_at']);
+  ensureSheet(SHEET_NAMES.tracking,   ['id','habit_id','habit_name','category_name','start_date','checked_days','created_at']);
+}
+
+function doGet(e) {
+  try {
+    initSheets();
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    function sheetToObjects(sheetName) {
+      const sheet = ss.getSheetByName(sheetName);
+      if (!sheet) return [];
+      const data = sheet.getDataRange().getValues();
+      if (data.length < 2) return [];
+      const headers = data[0];
+      return data.slice(1).map(row => {
+        const obj = {};
+        headers.forEach((h,i) => { obj[h] = row[i]; });
+        return obj;
+      }).filter(obj => obj.id);
+    }
+    const categories = sheetToObjects(SHEET_NAMES.categories).map(c => ({
+      id:String(c.id), name:String(c.name||''), color:String(c.color||'#22c55e'), created_at:String(c.created_at||'')
+    }));
+    const habits = sheetToObjects(SHEET_NAMES.habits).map(h => ({
+      id:String(h.id), category_id:String(h.category_id||''), category_name:String(h.category_name||''), name:String(h.name||''), created_at:String(h.created_at||'')
+    }));
+    const tracking = sheetToObjects(SHEET_NAMES.tracking).map(t => {
+      let checked = [];
+      try { checked = JSON.parse(String(t.checked_days||'[]')); } catch(e) {}
+      return { id:String(t.id), habit_id:String(t.habit_id||''), habit_name:String(t.habit_name||''), category_name:String(t.category_name||''), start_date:String(t.start_date||''), checked_days:checked, created_at:String(t.created_at||'') };
+    });
+    return makeResponse({ ok:true, categories, habits, tracking });
+  } catch(err) { return makeResponse({ ok:false, error:err.message }); }
+}
+
+function doPost(e) {
+  try {
+    initSheets();
+    const payload = JSON.parse(e.postData.contents);
+    const action  = payload.action;
+    const data    = payload.data || {};
+    const ss      = SpreadsheetApp.getActiveSpreadsheet();
+    function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+    function getSheet(name) { return ss.getSheetByName(name); }
+    function appendRow(sn, row) { getSheet(sn).appendRow(row); }
+    function findRowIndex(sn, id) {
+      const sheet = getSheet(sn);
+      const ids = sheet.getRange(1,1,sheet.getLastRow(),1).getValues().flat();
+      return ids.indexOf(String(id));
+    }
+    function deleteRowById(sn, id) {
+      const sheet = getSheet(sn);
+      const idx = findRowIndex(sn, id);
+      if (idx > 0) sheet.deleteRow(idx+1);
+    }
+    function updateCell(sn, id, col, val) {
+      const sheet = getSheet(sn);
+      const idx = findRowIndex(sn, id);
+      if (idx > 0) sheet.getRange(idx+1, col).setValue(val);
+    }
+    const now = new Date().toISOString();
+    if (action === 'add_category') {
+      const id = genId(); appendRow(SHEET_NAMES.categories, [id, data.name, data.color, now]);
+      return makeResponse({ ok:true, id });
+    }
+    if (action === 'delete_category') {
+      const sheet = getSheet(SHEET_NAMES.habits);
+      const values = sheet.getDataRange().getValues();
+      for (let i = values.length-1; i >= 1; i--) {
+        if (String(values[i][1]) === String(data.id)) sheet.deleteRow(i+1);
+      }
+      deleteRowById(SHEET_NAMES.categories, data.id);
+      return makeResponse({ ok:true });
+    }
+    if (action === 'add_habit') {
+      const id = genId(); appendRow(SHEET_NAMES.habits, [id, data.category_id, data.category_name, data.name, now]);
+      return makeResponse({ ok:true, id });
+    }
+    if (action === 'delete_habit') { deleteRowById(SHEET_NAMES.habits, data.id); return makeResponse({ ok:true }); }
+    if (action === 'start_tracking') {
+      const id = genId();
+      appendRow(SHEET_NAMES.tracking, [id, data.habit_id, data.habit_name, data.category_name, data.start_date, JSON.stringify([]), now]);
+      return makeResponse({ ok:true, id });
+    }
+    if (action === 'toggle_day') { updateCell(SHEET_NAMES.tracking, data.id, 6, JSON.stringify(data.checked_days)); return makeResponse({ ok:true }); }
+    if (action === 'update_start_date') {
+      updateCell(SHEET_NAMES.tracking, data.id, 5, data.start_date);
+      updateCell(SHEET_NAMES.tracking, data.id, 6, JSON.stringify(data.checked_days));
+      return makeResponse({ ok:true });
+    }
+    if (action === 'remove_tracking') { deleteRowById(SHEET_NAMES.tracking, data.id); return makeResponse({ ok:true }); }
+    return makeResponse({ ok:false, error:'Unknown action: '+action });
+  } catch(err) { return makeResponse({ ok:false, error:err.message }); }
+}</pre>
+</body>
+</html>
