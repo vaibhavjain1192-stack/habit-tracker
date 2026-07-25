@@ -330,7 +330,7 @@ input,select{font-family:var(--font)}
 // ═══════════════════════════════════════════════
 const CFG_KEY = 'ht_api_v1';
 // Pre-fill from localStorage so user doesn't need to re-enter after page reload
-let API_URL = localStorage.getItem(CFG_KEY) || 'https://script.google.com/macros/s/AKfycbwRg79iVnBf9c-fHt4lIRitemidud02tC-KXYUvEHIxtYx3IQHSjAKPFccydoF9Bo3y/exec';
+let API_URL = localStorage.getItem(CFG_KEY) || 'https://script.google.com/macros/s/AKfycbx7tjxFdolfI1izI6SBGScGl7ny8IM2PZ0wxIsSgZwxq5mpHA4hyWTrY1-8fUijjL4P/exec';
 // Always persist it
 localStorage.setItem(CFG_KEY, API_URL);
 
@@ -599,15 +599,30 @@ async function addHabitInline(catId, catName){
 }
 
 async function deleteCat(id,name){
-  if(!confirm(`Delete "${name}" and all its habits?`)) return;
-  try{await apiPost('delete_category',{id});toast('Deleted','ok');await refresh(true);}
-  catch(e){toast('Error: '+e.message,'err');}
+  if(!confirm('Delete "'+name+'" and all its habits? Tracking data will also be removed.')) return;
+  const catHabitIds = D.habits.filter(h=>h.category_id===id).map(h=>h.id);
+  D.categories = D.categories.filter(c=>c.id!==id);
+  D.habits     = D.habits.filter(h=>h.category_id!==id);
+  D.tracking   = D.tracking.filter(t=>!catHabitIds.includes(t.habit_id));
+  if(activeCatOpenId===id) activeCatOpenId=null;
+  renderAll();
+  try{await apiPost('delete_category',{id});toast('Category deleted ✓','ok');await refresh(true);}
+  catch(e){toast('Error: '+e.message,'err');await refresh(true);}
 }
 
 async function deleteHabit(id,name){
-  if(!confirm(`Delete habit "${name}"?`)) return;
-  try{await apiPost('delete_habit',{id});toast('Deleted','ok');await refresh(true);}
-  catch(e){toast('Error: '+e.message,'err');}
+  if(!confirm('Delete habit "'+name+'"? This will also remove it from your tracker.')) return;
+  D.habits   = D.habits.filter(h=>h.id!==id);
+  D.tracking = D.tracking.filter(t=>t.habit_id!==id);
+  renderAll();
+  try{
+    await apiPost('delete_habit',{id});
+    toast('Habit deleted ✓','ok');
+    await refresh(true);
+  }catch(e){
+    toast('Error: '+e.message,'err');
+    await refresh(true);
+  }
 }
 
 // ═══════════════════════════════════════════════
@@ -1083,10 +1098,23 @@ function doPost(e) {
       return makeResponse({ ok:true, id });
     }
     if (action === 'delete_category') {
-      const sheet = getSheet(SHEET_NAMES.habits);
-      const values = sheet.getDataRange().getValues();
-      for (let i = values.length-1; i >= 1; i--) {
-        if (String(values[i][1]) === String(data.id)) sheet.deleteRow(i+1);
+      // Collect habit IDs belonging to this category, then cascade-delete tracking too
+      const habitSheet = getSheet(SHEET_NAMES.habits);
+      const habitVals  = habitSheet.getDataRange().getValues();
+      const habitIds   = [];
+      for (let i = habitVals.length-1; i >= 1; i--) {
+        if (String(habitVals[i][1]) === String(data.id)) {
+          habitIds.push(String(habitVals[i][0]));
+          habitSheet.deleteRow(i+1);
+        }
+      }
+      // Delete any tracking rows whose habit_id matches
+      if (habitIds.length) {
+        const tSheet = getSheet(SHEET_NAMES.tracking);
+        const tVals  = tSheet.getDataRange().getValues();
+        for (let i = tVals.length-1; i >= 1; i--) {
+          if (habitIds.includes(String(tVals[i][1]))) tSheet.deleteRow(i+1);
+        }
       }
       deleteRowById(SHEET_NAMES.categories, data.id);
       return makeResponse({ ok:true });
@@ -1095,7 +1123,17 @@ function doPost(e) {
       const id = genId(); appendRow(SHEET_NAMES.habits, [id, data.category_id, data.category_name, data.name, now]);
       return makeResponse({ ok:true, id });
     }
-    if (action === 'delete_habit') { deleteRowById(SHEET_NAMES.habits, data.id); return makeResponse({ ok:true }); }
+    if (action === 'delete_habit') {
+      // Delete from Habits sheet
+      deleteRowById(SHEET_NAMES.habits, data.id);
+      // Cascade-delete any tracking entries for this habit (col 2 = habit_id, index 1)
+      const tSheet = getSheet(SHEET_NAMES.tracking);
+      const tVals  = tSheet.getDataRange().getValues();
+      for (let i = tVals.length-1; i >= 1; i--) {
+        if (String(tVals[i][1]) === String(data.id)) tSheet.deleteRow(i+1);
+      }
+      return makeResponse({ ok:true });
+    }
     if (action === 'start_tracking') {
       const id = genId();
       appendRow(SHEET_NAMES.tracking, [id, data.habit_id, data.habit_name, data.category_name, data.start_date, JSON.stringify([]), now]);
