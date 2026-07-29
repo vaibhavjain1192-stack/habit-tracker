@@ -150,18 +150,19 @@ input,select{font-family:var(--font)}
 .grid-wrap{margin-bottom:4px}
 .grid-lbl{font-size:10px;color:var(--tx3);margin-bottom:5px;display:flex;justify-content:space-between}
 .week-headers{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:2px}
-.week-hdr{font-size:9px;color:var(--tx3);text-align:center;font-weight:600;letter-spacing:.3px}
+.week-hdr{font-size:11px;color:var(--tx2);text-align:center;font-weight:700;padding:4px 0;letter-spacing:.3px}
 .days-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
 .dc{border-radius:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:7px 2px 6px;gap:3px;cursor:pointer;transition:.12s;border:1px solid transparent;-webkit-tap-highlight-color:transparent;touch-action:manipulation;min-height:54px}
-.dc:not(.future):active{transform:scale(1.08)}
+.dc.empty{background:transparent;border:none;cursor:default;pointer-events:none}
+.dc:not(.future):not(.empty):active{transform:scale(1.08)}
 .dc-num{font-size:15px;font-weight:700;line-height:1}
-.dc-date{font-size:11px;line-height:1;opacity:.8}
+.dc-date{font-size:11px;line-height:1;opacity:.75}
 .dc.done{background:var(--green);color:#000}
 .dc.done .dc-date{opacity:.6}
 .dc.today{border-color:var(--green);color:var(--green);background:var(--gbg);animation:ring 2s ease-in-out infinite}
-.dc.today .dc-date{opacity:.9}
+.dc.today .dc-date{opacity:.95}
 .dc.missed{background:var(--s3);color:var(--tx4)}
-.dc.missed .dc-date{opacity:.6}
+.dc.missed .dc-date{opacity:.55}
 .dc.future{background:var(--s2);color:var(--tx4);opacity:.3;cursor:default}
 .dc.future .dc-date{opacity:.5}
 @keyframes ring{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 2px rgba(34,197,94,.15)}}
@@ -456,6 +457,43 @@ function fmtCell(ds){
   const d=new Date(nd+' 00:00:00');
   return (d.getDate())+'/'+(d.getMonth()+1);
 }
+// Short day name: "Mon", "Tue" etc
+function fmtDay(ds){
+  if(!ds)return'';
+  const nd=normalizeDate(ds);
+  return new Date(nd+' 00:00:00').toLocaleDateString('en-IN',{weekday:'short'});
+}
+
+// Build the full grid HTML: week-header row + day cells with correct weekday alignment
+// Days are Mon→Sun columns; empty placeholder cells pad the start to align day 1 correctly
+const WEEK_DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+function buildGrid(sd, chk, dI, tid) {
+  // Find which column (0=Mon…6=Sun) day 1 falls on
+  const startDow = new Date(normalizeDate(sd)+' 00:00:00').getDay(); // 0=Sun…6=Sat
+  const startCol = (startDow + 6) % 7; // convert to Mon=0…Sun=6
+
+  const headerHtml = `<div class="week-headers">${WEEK_DAYS.map(w=>`<div class="week-hdr">${w}</div>`).join('')}</div>`;
+
+  let cells = '';
+  // Pad empty cells before day 1
+  for(let p=0; p<startCol; p++){
+    cells += `<div class="dc empty"></div>`;
+  }
+  // 66 day cells
+  for(let d=0; d<66; d++){
+    const isDone=chk.includes(d), isToday=d===dI, isFuture=d>dI;
+    let cls='dc ';
+    if(isDone) cls+='done'; else if(isToday) cls+='today'; else if(isFuture) cls+='future'; else cls+='missed';
+    const cellDate  = addDays(sd, d);
+    const dateLabel = fmtCell(cellDate);  // "25/7"
+    const click = !isFuture && tid ? `onclick="toggleDay('${esc2(tid)}',${d},event)"` : '';
+    cells += `<div class="${cls}" title="Day ${d+1} · ${fmtDay(cellDate)} · ${fmtDate(cellDate)}" ${click}>
+      <span class="dc-num">${d+1}</span>
+      <span class="dc-date">${dateLabel}</span>
+    </div>`;
+  }
+  return { headerHtml, cells };
+}
 
 // ═══════════════════════════════════════════════
 //  STREAK / PCT
@@ -698,22 +736,8 @@ function renderTracker(){
       continue;
     }
 
-    // Build 66-day grid with day number + date
-    const weekDays = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
-    // Find what weekday day 1 (sd) falls on to align headers — but simpler: just always show Mon→Sun header
-    const gridHeaderHtml = `<div class="week-headers">${weekDays.map(w=>`<div class="week-hdr">${w}</div>`).join('')}</div>`;
-    let cells='';
-    for(let d=0;d<66;d++){
-      const isDone=chk.includes(d),isToday=d===dI,isFuture=d>dI;
-      let cls='dc ';
-      if(isDone)cls+='done';else if(isToday)cls+='today';else if(isFuture)cls+='future';else cls+='missed';
-      const dateLabel = fmtCell(addDays(sd,d)); // e.g. "25 Jul"
-      const click = !isFuture ? `onclick="toggleDay('${esc2(t.id)}',${d},event)"` : '';
-      cells+=`<div class="${cls}" title="Day ${d+1} · ${fmtDate(addDays(sd,d))}" ${click}>
-        <span class="dc-num">${d+1}</span>
-        <span class="dc-date">${dateLabel}</span>
-      </div>`;
-    }
+    // Build 66-day grid with proper weekday column alignment
+    const { headerHtml, cells } = buildGrid(sd, chk, dI, t.id);
 
     html+=`<div class="hcard${isExpanded?' expanded':''}" id="${cardId}">
       <div class="hcard-header" onclick="toggleCard('${cardId}')">
@@ -748,7 +772,7 @@ function renderTracker(){
         <!-- grid -->
         <div class="grid-wrap" onclick="event.stopPropagation()">
           <div class="grid-lbl"><span>Tap to mark done/undo</span><span>${fmtShort(sd)} → ${fmtShort(endDate)}</span></div>
-          ${gridHeaderHtml}
+          ${headerHtml}
           <div class="days-grid">${cells}</div>
         </div>
         <!-- actions -->
@@ -797,22 +821,10 @@ function patchDayCell(tid, dayNum, chk){
   if(!entry) return;
   const sd = normalizeDate(entry.start_date||todayStr());
   const dI = dayIdx(sd);
-  // Re-render just the grid cells
   const gridEl = cardEl.querySelector('.days-grid');
   if(!gridEl) return;
-  let cells='';
-  for(let d=0;d<66;d++){
-    const isDone=chk.includes(d),isToday=d===dI,isFuture=d>dI;
-    let cls='dc ';
-    if(isDone)cls+='done';else if(isToday)cls+='today';else if(isFuture)cls+='future';else cls+='missed';
-    const dateLabel = fmtCell(addDays(sd,d));
-    const click = !isFuture ? `onclick="toggleDay('${esc2(tid)}',${d},event)"` : '';
-    cells+=`<div class="${cls}" title="Day ${d+1} · ${fmtDate(addDays(sd,d))}" ${click}>
-      <span class="dc-num">${d+1}</span>
-      <span class="dc-date">${dateLabel}</span>
-    </div>`;
-  }
-  gridEl.innerHTML=cells;
+  const { cells } = buildGrid(sd, chk, dI, tid);
+  gridEl.innerHTML = cells;
 }
 
 function patchCardProgress(tid, entry){
@@ -909,6 +921,57 @@ function renderAnalytics(){
   const totalCI=rows.reduce((s,r)=>s+r.chk.length,0);
   const avgAdh=Math.round(rows.reduce((s,r)=>s+r.adh,0)/rows.length);
 
+  // ── Weakest day analysis: for each habit, find which weekdays are most missed
+  function getWeakDays(chk, sd) {
+    const dayNames = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+    const counts = {done:{},missed:{}};
+    dayNames.forEach(d=>{counts.done[d]=0;counts.missed[d]=0;});
+    const dI = dayIdx(sd);
+    for(let d=0; d<=Math.min(dI,65); d++){
+      const dateStr = addDays(sd, d);
+      const wd = dayNames[new Date(normalizeDate(dateStr)+' 00:00:00').getDay()];
+      if(chk.includes(d)) counts.done[wd]++;
+      else counts.missed[wd]++;
+    }
+    return dayNames.map(day=>({
+      day,
+      done: counts.done[day],
+      missed: counts.missed[day],
+      total: counts.done[day]+counts.missed[day],
+      rate: counts.done[day]+counts.missed[day]>0
+        ? Math.round(counts.done[day]/(counts.done[day]+counts.missed[day])*100) : null
+    })).filter(d=>d.total>0);
+  }
+
+  // Aggregate weak days across ALL tracked habits
+  const allWeakDays = {};
+  const dayOrder = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+  dayOrder.forEach(d=>{ allWeakDays[d]={done:0,missed:0}; });
+  D.tracking.forEach(t=>{
+    const wd = getWeakDays(t.checked_days||[], normalizeDate(t.start_date));
+    wd.forEach(({day,done,missed})=>{
+      if(allWeakDays[day]){ allWeakDays[day].done+=done; allWeakDays[day].missed+=missed; }
+    });
+  });
+  const weakDayRows = dayOrder.map(day=>{
+    const {done,missed} = allWeakDays[day];
+    const total = done+missed;
+    const rate = total>0 ? Math.round(done/total*100) : null;
+    return {day, done, missed, total, rate};
+  }).filter(r=>r.total>0);
+
+  const weakDayHtml = weakDayRows.length ? weakDayRows.map(r=>{
+    const color = r.rate===null?'var(--tx3)':r.rate>=80?'var(--green)':r.rate>=50?'var(--amber)':'var(--red)';
+    return `<div class="bar-row">
+      <div class="bar-lbl" style="width:36px;font-weight:600;color:var(--tx)">${r.day}</div>
+      <div style="flex:1">
+        <div class="bar-track"><div class="bar-fill" style="width:${r.rate||0}%;background:${color}"></div></div>
+        <div style="font-size:10px;color:var(--tx3);margin-top:2px">✅ ${r.done} done &nbsp; ❌ ${r.missed} missed</div>
+      </div>
+      <div class="bar-val" style="color:${color};font-weight:600">${r.rate!==null?r.rate+'%':'–'}</div>
+    </div>`;
+  }).join('') : '<p style="font-size:12px;color:var(--tx3)">Not enough data yet.</p>';
+
   el.innerHTML=`
     <div class="tracker-stats" style="margin-bottom:12px">
       <div class="tstat"><div class="tstat-val" style="color:var(--green)">${totalCI}</div><div class="tstat-lbl">Check-ins</div></div>
@@ -917,7 +980,7 @@ function renderAnalytics(){
       <div class="tstat"><div class="tstat-val" style="color:var(--blue)">${rows.filter(r=>r.p>=100).length}</div><div class="tstat-lbl">Built</div></div>
     </div>
     <div class="ana-card">
-      <div class="ana-title">Adherence rate</div>
+      <div class="ana-title">Adherence rate per habit</div>
       ${rows.map(r=>`<div class="bar-row">
         <div class="bar-lbl" title="${esc(r.name)}">${esc(r.name)}</div>
         <div class="bar-track"><div class="bar-fill" style="width:${r.adh}%;background:${r.color}"></div></div>
@@ -931,6 +994,11 @@ function renderAnalytics(){
         <div class="bar-track"><div class="bar-fill" style="width:${Math.round(r.strk/66*100)}%;background:var(--amber)"></div></div>
         <div class="bar-val">${r.strk}d</div>
       </div>`).join('')||'<p style="font-size:12px;color:var(--tx3)">No active streaks yet.</p>'}
+    </div>
+    <div class="ana-card">
+      <div class="ana-title">Day of week — where streaks break 📅</div>
+      <p style="font-size:11px;color:var(--tx3);margin-bottom:12px">Across all habits — shows which days you tend to miss</p>
+      ${weakDayHtml}
     </div>`;
 }
 
