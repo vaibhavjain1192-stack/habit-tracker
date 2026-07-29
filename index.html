@@ -146,17 +146,24 @@ input,select{font-family:var(--font)}
 .prog-nums span{font-size:11px;color:var(--tx2)}
 .prog-nums strong{color:var(--tx)}
 
-/* 66 GRID compact */
+/* 66 GRID — weekly rows, date visible */
 .grid-wrap{margin-bottom:4px}
 .grid-lbl{font-size:10px;color:var(--tx3);margin-bottom:5px;display:flex;justify-content:space-between}
-.days-grid{display:grid;grid-template-columns:repeat(11,1fr);gap:3px}
-@media(max-width:380px){.days-grid{grid-template-columns:repeat(9,1fr)}}
-.dc{aspect-ratio:1;border-radius:3px;display:flex;align-items:center;justify-content:center;font-size:9px;font-weight:600;cursor:pointer;transition:.12s;border:1px solid transparent;-webkit-tap-highlight-color:transparent;touch-action:manipulation}
-.dc:not(.future):active{transform:scale(1.15)}
+.week-headers{display:grid;grid-template-columns:repeat(7,1fr);gap:3px;margin-bottom:2px}
+.week-hdr{font-size:9px;color:var(--tx3);text-align:center;font-weight:600;letter-spacing:.3px}
+.days-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:3px}
+.dc{border-radius:5px;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:7px 2px 6px;gap:3px;cursor:pointer;transition:.12s;border:1px solid transparent;-webkit-tap-highlight-color:transparent;touch-action:manipulation;min-height:54px}
+.dc:not(.future):active{transform:scale(1.08)}
+.dc-num{font-size:15px;font-weight:700;line-height:1}
+.dc-date{font-size:11px;line-height:1;opacity:.8}
 .dc.done{background:var(--green);color:#000}
+.dc.done .dc-date{opacity:.6}
 .dc.today{border-color:var(--green);color:var(--green);background:var(--gbg);animation:ring 2s ease-in-out infinite}
+.dc.today .dc-date{opacity:.9}
 .dc.missed{background:var(--s3);color:var(--tx4)}
-.dc.future{background:var(--s2);color:var(--tx4);opacity:.35;cursor:default}
+.dc.missed .dc-date{opacity:.6}
+.dc.future{background:var(--s2);color:var(--tx4);opacity:.3;cursor:default}
+.dc.future .dc-date{opacity:.5}
 @keyframes ring{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 2px rgba(34,197,94,.15)}}
 
 /* CARD ACTIONS */
@@ -442,6 +449,13 @@ function dayIdx(sd){return daysBetween(normalizeDate(sd),todayStr())}
 function addDays(ds,n){const d=new Date(normalizeDate(ds)+' 00:00:00');d.setDate(d.getDate()+n);return d.getFullYear()+'-'+p2(d.getMonth()+1)+'-'+p2(d.getDate())}
 function fmtDate(ds){if(!ds)return'';const nd=normalizeDate(ds);return new Date(nd+' 00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short',year:'numeric'})}
 function fmtShort(ds){if(!ds)return'';const nd=normalizeDate(ds);return new Date(nd+' 00:00:00').toLocaleDateString('en-IN',{day:'numeric',month:'short'})}
+// Ultra-compact for grid cells: "25/7", "3/8" etc
+function fmtCell(ds){
+  if(!ds)return'';
+  const nd=normalizeDate(ds);
+  const d=new Date(nd+' 00:00:00');
+  return (d.getDate())+'/'+(d.getMonth()+1);
+}
 
 // ═══════════════════════════════════════════════
 //  STREAK / PCT
@@ -684,13 +698,21 @@ function renderTracker(){
       continue;
     }
 
-    // 66 cells — pass event so stopPropagation works
+    // Build 66-day grid with day number + date
+    const weekDays = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
+    // Find what weekday day 1 (sd) falls on to align headers — but simpler: just always show Mon→Sun header
+    const gridHeaderHtml = `<div class="week-headers">${weekDays.map(w=>`<div class="week-hdr">${w}</div>`).join('')}</div>`;
     let cells='';
     for(let d=0;d<66;d++){
       const isDone=chk.includes(d),isToday=d===dI,isFuture=d>dI;
       let cls='dc ';
       if(isDone)cls+='done';else if(isToday)cls+='today';else if(isFuture)cls+='future';else cls+='missed';
-      cells+=`<div class="${cls}" title="Day ${d+1}·${fmtShort(addDays(sd,d))}" ${!isFuture?`onclick="toggleDay('${esc2(t.id)}',${d},event)"`:''} >${d+1}</div>`;
+      const dateLabel = fmtCell(addDays(sd,d)); // e.g. "25 Jul"
+      const click = !isFuture ? `onclick="toggleDay('${esc2(t.id)}',${d},event)"` : '';
+      cells+=`<div class="${cls}" title="Day ${d+1} · ${fmtDate(addDays(sd,d))}" ${click}>
+        <span class="dc-num">${d+1}</span>
+        <span class="dc-date">${dateLabel}</span>
+      </div>`;
     }
 
     html+=`<div class="hcard${isExpanded?' expanded':''}" id="${cardId}">
@@ -726,6 +748,7 @@ function renderTracker(){
         <!-- grid -->
         <div class="grid-wrap" onclick="event.stopPropagation()">
           <div class="grid-lbl"><span>Tap to mark done/undo</span><span>${fmtShort(sd)} → ${fmtShort(endDate)}</span></div>
+          ${gridHeaderHtml}
           <div class="days-grid">${cells}</div>
         </div>
         <!-- actions -->
@@ -774,7 +797,7 @@ function patchDayCell(tid, dayNum, chk){
   if(!entry) return;
   const sd = normalizeDate(entry.start_date||todayStr());
   const dI = dayIdx(sd);
-  // Re-render just the grid
+  // Re-render just the grid cells
   const gridEl = cardEl.querySelector('.days-grid');
   if(!gridEl) return;
   let cells='';
@@ -782,7 +805,12 @@ function patchDayCell(tid, dayNum, chk){
     const isDone=chk.includes(d),isToday=d===dI,isFuture=d>dI;
     let cls='dc ';
     if(isDone)cls+='done';else if(isToday)cls+='today';else if(isFuture)cls+='future';else cls+='missed';
-    cells+=`<div class="${cls}" title="Day ${d+1}·${fmtShort(addDays(sd,d))}" ${!isFuture?`onclick="toggleDay('${esc2(tid)}',${d},event)"`:''} >${d+1}</div>`;
+    const dateLabel = fmtCell(addDays(sd,d));
+    const click = !isFuture ? `onclick="toggleDay('${esc2(tid)}',${d},event)"` : '';
+    cells+=`<div class="${cls}" title="Day ${d+1} · ${fmtDate(addDays(sd,d))}" ${click}>
+      <span class="dc-num">${d+1}</span>
+      <span class="dc-date">${dateLabel}</span>
+    </div>`;
   }
   gridEl.innerHTML=cells;
 }
