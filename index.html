@@ -95,7 +95,10 @@ input,select{font-family:var(--font)}
 /* ── HOME / ACTIVE HABITS LIST ── */
 .active-habit-row{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px}
 .ahr-left{flex:1;min-width:0}
-.ahr-name{font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ahr-name-row{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:2px}
+.ahr-name{font-size:14px;font-weight:600}
+.add-time-btn{font-size:10px;padding:2px 7px;border-radius:20px;border:1px dashed var(--bd2);background:transparent;color:var(--tx3);cursor:pointer;-webkit-tap-highlight-color:transparent}
+.add-time-btn:hover{color:var(--tx);border-color:var(--tx3)}
 .ahr-cat{font-size:11px;color:var(--tx2);margin-top:2px}
 .ahr-bar-wrap{height:5px;background:var(--s3);border-radius:3px;margin-top:8px;overflow:hidden}
 .ahr-bar-fill{height:100%;border-radius:3px;transition:width .4s ease}
@@ -167,6 +170,9 @@ input,select{font-family:var(--font)}
 .dc.future .dc-date{opacity:.5}
 @keyframes ring{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 2px rgba(34,197,94,.15)}}
 
+/* TIME SLOT HEADER */
+.time-slot-header{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--tx3);padding:10px 2px 6px;margin-top:4px;border-bottom:1px solid var(--bd);margin-bottom:6px}
+.time-slot-header:first-child{margin-top:0;padding-top:0}
 /* TIME BADGE */
 .time-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--blue);background:var(--bbg);padding:2px 8px;border-radius:20px;flex-shrink:0}
 .time-edit-btn{background:none;border:none;color:var(--tx3);cursor:pointer;font-size:12px;padding:0 2px;line-height:1;-webkit-tap-highlight-color:transparent}
@@ -542,6 +548,54 @@ function buildGrid(sd, chk, dI, tid) {
   return { headerHtml, cells };
 }
 
+// ── Parse any time value the server might send into clean HH:MM ──
+function parseTime(val) {
+  if (!val) return '';
+  const s = String(val).trim();
+  // Already clean HH:MM
+  if (/^\d{1,2}:\d{2}$/.test(s)) return s.padStart(5,'0').slice(0,5);
+  // Full date string like "Sat Dec 30 1899 06:00:00 GMT+0530"
+  const mFull = s.match(/(\d{1,2}):(\d{2}):\d{2}/);
+  if (mFull) return mFull[1].padStart(2,'0') + ':' + mFull[2];
+  // Numeric fraction (Sheets serial: 0.25 = 06:00)
+  const n = parseFloat(s);
+  if (!isNaN(n) && n < 1) {
+    const totalMins = Math.round(n * 1440);
+    return String(Math.floor(totalMins/60)).padStart(2,'0') + ':' + String(totalMins%60).padStart(2,'0');
+  }
+  return '';
+}
+
+// Convert HH:MM to friendly label like "6:00 AM"
+function fmtTime12(t) {
+  if (!t) return '';
+  const clean = parseTime(t);
+  if (!clean) return '';
+  const [hh, mm] = clean.split(':').map(Number);
+  const ampm = hh < 12 ? 'AM' : 'PM';
+  const h12  = hh % 12 || 12;
+  return `${h12}:${String(mm).padStart(2,'0')} ${ampm}`;
+}
+
+// Get time slot label for grouping
+function timeSlot(t) {
+  if (!t) return 'anytime';
+  const clean = parseTime(t);
+  if (!clean) return 'anytime';
+  const h = parseInt(clean.split(':')[0]);
+  if (h >= 5  && h < 12) return 'morning';
+  if (h >= 12 && h < 17) return 'afternoon';
+  if (h >= 17 && h < 21) return 'evening';
+  return 'night';
+}
+const SLOT_LABELS = {
+  morning:   '🌅 Morning',
+  afternoon: '☀️ Afternoon',
+  evening:   '🌆 Evening',
+  night:     '🌙 Night',
+  anytime:   '⏰ Anytime'
+};
+
 // ═══════════════════════════════════════════════
 //  STREAK / PCT
 // ═══════════════════════════════════════════════
@@ -572,7 +626,6 @@ function renderAll(){
 // ═══════════════════════════════════════════════
 function renderActiveHabits(){
   const el = document.getElementById('activeHabitsList');
-  const today = todayStr();
 
   if(!D.tracking.length){
     el.innerHTML=`<div class="empty"><div class="eico">🌱</div><h3>No active habits</h3>
@@ -580,52 +633,67 @@ function renderActiveHabits(){
     return;
   }
 
+  // Parse and clean time on every entry first
+  D.tracking.forEach(t => { t._cleanTime = parseTime(t.time||''); });
+
   // Sort by time (morning to evening), habits without time go last
   const sorted = [...D.tracking].sort((a,b)=>{
-    const ta = a.time||'99:99', tb = b.time||'99:99';
+    const ta = a._cleanTime||'99:99', tb = b._cleanTime||'99:99';
     return ta.localeCompare(tb);
   });
 
-  let html='';
-  for(const t of sorted){
-    const chk = t.checked_days||[];
-    const sd  = normalizeDate(t.start_date);
-    const dI  = dayIdx(sd);
-    const strk = streak(chk);
-    const adh  = adherence(chk, sd);
-    const elapsed = Math.min(Math.max(dI+1,0),66);
-    const daysLeft = Math.max(66-chk.length,0);
-    const isDoneToday = chk.includes(dI) && dI>=0 && dI<66;
-    const isBuilt = chk.length>=66;
-    const cat = D.categories.find(c=>c.name===t.category_name);
-    const color = cat?(cat.color||'#22c55e'):'#22c55e';
-    const p = pct(chk);
+  // Group by time slot
+  const SLOT_ORDER = ['morning','afternoon','evening','night','anytime'];
+  const groups = {};
+  SLOT_ORDER.forEach(s => groups[s] = []);
+  sorted.forEach(t => groups[timeSlot(t._cleanTime)].push(t));
 
-    html+=`<div class="active-habit-row">
-      <div class="ahr-left">
-        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-          <div class="ahr-name">${esc(t.habit_name)}</div>
-          ${t.time?`<span class="time-badge">⏰ ${t.time}</span>`:''}
-          <button onclick="event.stopPropagation();openEditTime('${esc2(t.id)}','${esc2(t.habit_name)}','${esc2(t.time||'')}')" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:12px;padding:0" title="Edit time">✎</button>
+  let html = '';
+  for(const slot of SLOT_ORDER){
+    const items = groups[slot];
+    if(!items.length) continue;
+    html += `<div class="time-slot-header">${SLOT_LABELS[slot]}</div>`;
+    for(const t of items){
+      const chk = t.checked_days||[];
+      const sd  = normalizeDate(t.start_date);
+      const dI  = dayIdx(sd);
+      const strk = streak(chk);
+      const adh  = adherence(chk, sd);
+      const elapsed = Math.min(Math.max(dI+1,0),66);
+      const daysLeft = Math.max(66-chk.length,0);
+      const isDoneToday = chk.includes(dI) && dI>=0 && dI<66;
+      const isBuilt = chk.length>=66;
+      const cat = D.categories.find(c=>c.name===t.category_name);
+      const color = cat?(cat.color||'#22c55e'):'#22c55e';
+      const p = pct(chk);
+      const timeDisplay = t._cleanTime ? fmtTime12(t._cleanTime) : '';
+
+      html+=`<div class="active-habit-row">
+        <div class="ahr-left">
+          <div class="ahr-name-row">
+            <div class="ahr-name">${esc(t.habit_name)}</div>
+            ${timeDisplay
+              ? `<span class="time-badge">⏰ ${timeDisplay}</span>`
+              : `<button onclick="event.stopPropagation();openEditTime('${esc2(t.id)}','${esc2(t.habit_name)}','')" class="add-time-btn">+ Add time</button>`}
+            <button onclick="event.stopPropagation();openEditTime('${esc2(t.id)}','${esc2(t.habit_name)}','${esc2(t._cleanTime||'')}')" class="time-edit-btn" title="Edit time">✎</button>
+          </div>
+          <div class="ahr-cat">${esc(t.category_name)} · Day <strong style="color:var(--tx)">${elapsed}</strong>/66 · ${daysLeft} left</div>
+          <div class="ahr-bar-wrap"><div class="ahr-bar-fill" style="width:${p}%;background:${color}"></div></div>
+          <div class="ahr-stats">
+            <span class="ahr-stat">✅ <strong>${chk.length}</strong> done</span>
+            <span class="ahr-stat">📅 ${fmtShort(sd)}</span>
+            ${isBuilt?'<span class="ahr-stat" style="color:var(--green)">🏆 Built!</span>':''}
+          </div>
         </div>
-        <div class="ahr-cat">${esc(t.category_name)} · Day <strong style="color:var(--tx)">${elapsed}</strong> of 66 · ${daysLeft} left</div>
-        <div class="ahr-bar-wrap">
-          <div class="ahr-bar-fill" style="width:${p}%;background:${color}"></div>
+        <div class="ahr-right">
+          <div class="ahr-pct" style="color:${color}">${adh}%</div>
+          ${strk>0?`<div class="ahr-streak">🔥 ${strk}d</div>`:'<div class="ahr-streak" style="color:var(--tx3)">–</div>'}
+          ${!isBuilt&&dI>=0&&dI<66?`<button class="mark-btn${isDoneToday?' done-today':''}" onclick="quickMark('${esc2(t.id)}')">
+            ${isDoneToday?'✓ Done':'+ Today'}
+          </button>`:''}
         </div>
-        <div class="ahr-stats">
-          <span class="ahr-stat">✅ <strong>${chk.length}</strong> done</span>
-          <span class="ahr-stat">📅 Started ${fmtShort(sd)}</span>
-          ${isBuilt?'<span class="ahr-stat" style="color:var(--green)">🏆 Built!</span>':''}
-        </div>
-      </div>
-      <div class="ahr-right">
-        <div class="ahr-pct" style="color:${color}">${adh}%</div>
-        ${strk>0?`<div class="ahr-streak">🔥 ${strk}d streak</div>`:'<div class="ahr-streak" style="color:var(--tx3)">No streak</div>'}
-        ${!isBuilt&&dI>=0&&dI<66?`<button class="mark-btn${isDoneToday?' done-today':''}" onclick="quickMark('${esc2(t.id)}')">
-          ${isDoneToday?'✓ Done':'+ Today'}
-        </button>`:''}
-      </div>
-    </div>`;
+      </div>`;
+    }
   }
   el.innerHTML = html;
 }
@@ -1246,6 +1314,33 @@ function makeResponse(data) {
     .createTextOutput(JSON.stringify(data))
     .setMimeType(ContentService.MimeType.JSON);
 }
+// ── Convert any time value from Sheets to HH:MM string ──
+// Sheets sometimes returns time as a Date serial (e.g. 0.25 = 06:00) or a Date object
+function parseTimeField(val) {
+  if (!val && val !== 0) return '';
+  // Already a clean HH:MM string
+  if (typeof val === 'string' && /^\d{1,2}:\d{2}$/.test(val.trim())) return val.trim();
+  // Sheets Date object (time-only dates have year 1899)
+  if (val instanceof Date) {
+    const h = String(val.getHours()).padStart(2,'0');
+    const m = String(val.getMinutes()).padStart(2,'0');
+    return h + ':' + m;
+  }
+  // Numeric serial fraction (0.0 = 00:00, 0.25 = 06:00, 0.5 = 12:00, 0.75 = 18:00)
+  if (typeof val === 'number') {
+    const totalMins = Math.round(val * 1440);
+    const h = String(Math.floor(totalMins / 60) % 24).padStart(2,'0');
+    const m = String(totalMins % 60).padStart(2,'0');
+    return h + ':' + m;
+  }
+  // String that looks like a full date/time - extract HH:MM
+  const s = String(val);
+  const m = s.match(/(\d{1,2}):(\d{2})(:\d{2})?/);
+  if (m) return m[1].padStart(2,'0') + ':' + m[2];
+  return '';
+}
+
+
 
 // ── Ensure sheet exists AND has all required columns (adds missing ones) ──
 function ensureSheet(ss, name, requiredHeaders) {
@@ -1324,7 +1419,7 @@ function doGet(e) {
       category_id:   String(h.category_id   || ''),
       category_name: String(h.category_name || ''),
       name:          String(h.name          || ''),
-      time:          String(h.time          || ''),
+      time:          parseTimeField(h.time),
       created_at:    String(h.created_at    || '')
     }));
 
@@ -1338,7 +1433,7 @@ function doGet(e) {
         category_name: String(t.category_name || ''),
         start_date:    String(t.start_date    || ''),
         checked_days:  checked,
-        time:          String(t.time          || ''),
+        time:          parseTimeField(t.time),
         created_at:    String(t.created_at    || '')
       };
     });
@@ -1376,12 +1471,26 @@ function doPost(e) {
       if (idx > 0) getSheet(sn).deleteRow(idx+1);
     }
 
-    // Update a cell by header name — uses actual column position
+    // Update a cell by header name — forces plain text for 'time' fields
     function updateByHeader(sn, id, headerName, value) {
       const col = colOf(ss, sn, headerName);
       if (col === -1) return;
       const idx = findRowIndex(sn, id);
-      if (idx > 0) getSheet(sn).getRange(idx+1, col).setValue(value);
+      if (idx > 0) {
+        const cell = getSheet(sn).getRange(idx+1, col);
+        if (headerName === 'time') cell.setNumberFormat('@STRING@');
+        cell.setValue(String(value));
+      }
+    }
+
+    // Append a row, then force time column to plain text to prevent serial conversion
+    function appendRowWithTime(sn, row, timeColIndex) {
+      const sheet = getSheet(sn);
+      sheet.appendRow(row);
+      if (timeColIndex >= 0) {
+        const newRow = sheet.getLastRow();
+        sheet.getRange(newRow, timeColIndex + 1).setNumberFormat('@STRING@').setValue(String(row[timeColIndex]));
+      }
     }
 
     const now = new Date().toISOString();
@@ -1418,7 +1527,7 @@ function doPost(e) {
     // ── ADD HABIT ──
     if (action === 'add_habit') {
       const id = genId();
-      appendRow(SHEET_NAMES.habits, [id, data.category_id, data.category_name, data.name, data.time||'', now]);
+      appendRowWithTime(SHEET_NAMES.habits, [id, data.category_id, data.category_name, data.name, data.time||'', now], 4);
       return makeResponse({ ok:true, id });
     }
 
@@ -1456,7 +1565,7 @@ function doPost(e) {
     // ── START TRACKING ──
     if (action === 'start_tracking') {
       const id = genId();
-      appendRow(SHEET_NAMES.tracking, [id, data.habit_id, data.habit_name, data.category_name, data.start_date, JSON.stringify([]), data.time||'', now]);
+      appendRowWithTime(SHEET_NAMES.tracking, [id, data.habit_id, data.habit_name, data.category_name, data.start_date, JSON.stringify([]), data.time||'', now], 6);
       return makeResponse({ ok:true, id });
     }
 
