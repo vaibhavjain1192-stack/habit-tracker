@@ -167,6 +167,12 @@ input,select{font-family:var(--font)}
 .dc.future .dc-date{opacity:.5}
 @keyframes ring{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 2px rgba(34,197,94,.15)}}
 
+/* TIME BADGE */
+.time-badge{display:inline-flex;align-items:center;gap:4px;font-size:11px;font-weight:600;color:var(--blue);background:var(--bbg);padding:2px 8px;border-radius:20px;flex-shrink:0}
+.time-edit-btn{background:none;border:none;color:var(--tx3);cursor:pointer;font-size:12px;padding:0 2px;line-height:1;-webkit-tap-highlight-color:transparent}
+.time-edit-btn:hover{color:var(--tx)}
+/* EDIT MODAL */
+.edit-row{display:flex;gap:8px;align-items:flex-end}
 /* CARD ACTIONS */
 .hcard-actions{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
 
@@ -324,10 +330,51 @@ input,select{font-family:var(--font)}
       <label>📅 Start date (Day 1 of 66)</label>
       <input type="date" id="inStartDate" style="color-scheme:dark">
     </div>
+    <div class="fg" style="margin-top:10px">
+      <label>⏰ Time to perform this habit</label>
+      <input type="time" id="inStartTime" value="06:00" style="color-scheme:dark">
+    </div>
     <p style="font-size:11px;color:var(--tx3);margin-top:-6px">You can pick a past date if you've already started.</p>
     <div class="modal-foot">
       <button class="btn btn-sm" onclick="closeModal('mStartTrack')">Cancel</button>
       <button class="btn btn-sm btn-green" id="btnConfirmTrack">Start 66-day journey →</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT HABIT MODAL -->
+<div class="overlay" id="mEditHabit" style="display:none">
+  <div class="modal">
+    <h3>Edit habit</h3>
+    <input type="hidden" id="editHabitId">
+    <div class="fg">
+      <label>Habit name</label>
+      <input type="text" id="editHabitName" maxlength="80">
+    </div>
+    <div class="fg">
+      <label>⏰ Time to perform</label>
+      <input type="time" id="editHabitTime" style="color-scheme:dark">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-sm" onclick="closeModal('mEditHabit')">Cancel</button>
+      <button class="btn btn-sm btn-green" id="btnConfirmEditHabit">Save changes</button>
+    </div>
+  </div>
+</div>
+
+<!-- EDIT TRACKING TIME MODAL -->
+<div class="overlay" id="mEditTime" style="display:none">
+  <div class="modal">
+    <h3>Edit habit time</h3>
+    <p style="font-size:13px;color:var(--tx2);margin-bottom:14px">Habit: <strong id="editTimeName" style="color:var(--tx)"></strong></p>
+    <input type="hidden" id="editTimeTrackId">
+    <div class="fg">
+      <label>⏰ Time to perform this habit</label>
+      <input type="time" id="editTimeValue" style="color-scheme:dark">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-sm" onclick="closeModal('mEditTime')">Cancel</button>
+      <button class="btn btn-sm btn-green" id="btnConfirmEditTime">Save time</button>
     </div>
   </div>
 </div>
@@ -533,8 +580,14 @@ function renderActiveHabits(){
     return;
   }
 
+  // Sort by time (morning to evening), habits without time go last
+  const sorted = [...D.tracking].sort((a,b)=>{
+    const ta = a.time||'99:99', tb = b.time||'99:99';
+    return ta.localeCompare(tb);
+  });
+
   let html='';
-  for(const t of D.tracking){
+  for(const t of sorted){
     const chk = t.checked_days||[];
     const sd  = normalizeDate(t.start_date);
     const dI  = dayIdx(sd);
@@ -550,7 +603,11 @@ function renderActiveHabits(){
 
     html+=`<div class="active-habit-row">
       <div class="ahr-left">
-        <div class="ahr-name">${esc(t.habit_name)}</div>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <div class="ahr-name">${esc(t.habit_name)}</div>
+          ${t.time?`<span class="time-badge">⏰ ${t.time}</span>`:''}
+          <button onclick="event.stopPropagation();openEditTime('${esc2(t.id)}','${esc2(t.habit_name)}','${esc2(t.time||'')}')" style="background:none;border:none;color:var(--tx3);cursor:pointer;font-size:12px;padding:0" title="Edit time">✎</button>
+        </div>
         <div class="ahr-cat">${esc(t.category_name)} · Day <strong style="color:var(--tx)">${elapsed}</strong> of 66 · ${daysLeft} left</div>
         <div class="ahr-bar-wrap">
           <div class="ahr-bar-fill" style="width:${p}%;background:${color}"></div>
@@ -617,13 +674,16 @@ function renderCategories(){
           const tracked=D.tracking.find(t=>t.habit_id===h.id);
           return `<div class="h-row">
             <div class="h-row-name">${esc(h.name)}</div>
+            ${h.time?`<span class="time-badge">⏰ ${h.time}</span>`:''}
             ${tracked?`<span class="tracked-pill">✓ Active</span>`
-              :`<button class="btn btn-xs btn-green" onclick="openStartTrack('${esc2(h.id)}','${esc2(h.name)}','${esc2(c.name)}')">Track →</button>`}
+              :`<button class="btn btn-xs btn-green" onclick="openStartTrack('${esc2(h.id)}','${esc2(h.name)}','${esc2(c.name)}','${esc2(h.time||'')}')" >Track →</button>`}
+            <button class="btn-ico btn" onclick="event.stopPropagation();openEditHabit('${esc2(h.id)}','${esc2(h.name)}','${esc2(h.time||'')}')" style="color:var(--blue);padding:4px 7px;font-size:12px" title="Edit">✎</button>
             <button class="btn-ico btn" onclick="deleteHabit('${esc2(h.id)}','${esc2(h.name)}')" style="color:var(--tx3);padding:4px 7px;font-size:12px">✕</button>
           </div>`;
         }).join(''):'<p style="font-size:12px;color:var(--tx3);padding:4px 0 8px">No habits yet.</p>'}
-        <div class="add-habit-row">
-          <input type="text" id="hin_${c.id}" placeholder="Add habit…" maxlength="80" onkeydown="if(event.key==='Enter')addHabitInline('${esc2(c.id)}','${esc2(c.name)}')">
+        <div class="add-habit-row" style="flex-wrap:wrap">
+          <input type="text" id="hin_${c.id}" placeholder="Add habit…" maxlength="80" style="min-width:120px" onkeydown="if(event.key==='Enter')addHabitInline('${esc2(c.id)}','${esc2(c.name)}')">
+          <input type="time" id="htim_${c.id}" value="06:00" style="padding:7px 8px;background:var(--s1);border:1px solid var(--bd2);border-radius:var(--rs);color:var(--tx);font-size:13px;outline:none;color-scheme:dark;width:110px">
           <button class="btn btn-sm btn-green" onclick="addHabitInline('${esc2(c.id)}','${esc2(c.name)}')">+</button>
         </div>
       </div>
@@ -639,12 +699,14 @@ function toggleCat(id){
 
 async function addHabitInline(catId, catName){
   const inp = document.getElementById('hin_'+catId);
+  const timInp = document.getElementById('htim_'+catId);
   if(!inp) return;
   const name = inp.value.trim();
+  const time = timInp ? timInp.value : '';
   if(!name){inp.focus();return;}
   inp.disabled=true;
   try{
-    await apiPost('add_habit',{category_id:catId,category_name:catName,name});
+    await apiPost('add_habit',{category_id:catId,category_name:catName,name,time});
     toast('Habit added ✓','ok');
     await refresh(true);
   }catch(e){toast('Error: '+e.message,'err');inp.disabled=false;}
@@ -1036,24 +1098,81 @@ document.getElementById('btnConfirmCat').addEventListener('click',async()=>{
 document.getElementById('inCatName').addEventListener('keydown',e=>{if(e.key==='Enter')document.getElementById('btnConfirmCat').click()});
 
 // Start tracking
-function openStartTrack(habitId,habitName,catName){
-  pendingTrack={habitId,habitName,catName};
+function openStartTrack(habitId,habitName,catName,habitTime){
+  pendingTrack={habitId,habitName,catName,habitTime};
   document.getElementById('mTrackName').textContent=habitName;
   document.getElementById('inStartDate').value=todayStr();
   document.getElementById('inStartDate').max=todayStr();
+  document.getElementById('inStartTime').value=habitTime||'06:00';
   openModal('mStartTrack');
 }
 document.getElementById('btnConfirmTrack').addEventListener('click',async()=>{
   const sd=document.getElementById('inStartDate').value;
   if(!sd){toast('Pick a date','err');return;}
   const btn=document.getElementById('btnConfirmTrack');btn.disabled=true;btn.textContent='Starting…';
+  const habitTime = document.getElementById('inStartTime').value||'';
   try{
-    await apiPost('start_tracking',{habit_id:pendingTrack.habitId,habit_name:pendingTrack.habitName,category_name:pendingTrack.catName,start_date:sd});
+    await apiPost('start_tracking',{habit_id:pendingTrack.habitId,habit_name:pendingTrack.habitName,category_name:pendingTrack.catName,start_date:sd,time:habitTime});
     closeModal('mStartTrack');toast('Tracking started ✓','ok');
     await refresh(true);
     switchMainTab('home');switchSubTab('active');
   }catch(e){toast('Error: '+e.message,'err');}
   finally{btn.disabled=false;btn.textContent='Start 66-day journey →';}
+});
+
+// ═══════════════════════════════════════════════
+//  EDIT HABIT MODAL
+// ═══════════════════════════════════════════════
+function openEditHabit(id, name, time){
+  document.getElementById('editHabitId').value = id;
+  document.getElementById('editHabitName').value = name;
+  document.getElementById('editHabitTime').value = time||'06:00';
+  openModal('mEditHabit');
+  setTimeout(()=>document.getElementById('editHabitName').focus(),200);
+}
+document.getElementById('btnConfirmEditHabit').addEventListener('click', async()=>{
+  const id   = document.getElementById('editHabitId').value;
+  const name = document.getElementById('editHabitName').value.trim();
+  const time = document.getElementById('editHabitTime').value;
+  if(!name){toast('Enter a name','err');return;}
+  const btn=document.getElementById('btnConfirmEditHabit');btn.disabled=true;btn.textContent='Saving…';
+  try{
+    await apiPost('edit_habit',{id,name,time});
+    // Update in memory
+    const h = D.habits.find(h=>h.id===id);
+    if(h){h.name=name;h.time=time;}
+    // Also update tracking entries that reference this habit
+    D.tracking.forEach(t=>{if(t.habit_id===id){t.habit_name=name;t.time=time;}});
+    closeModal('mEditHabit');
+    toast('Habit updated ✓','ok');
+    renderAll();
+    await refresh(true);
+  }catch(e){toast('Error: '+e.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Save changes';}
+});
+
+// ═══════════════════════════════════════════════
+//  EDIT TRACKING TIME MODAL
+// ═══════════════════════════════════════════════
+function openEditTime(trackingId, habitName, currentTime){
+  document.getElementById('editTimeTrackId').value = trackingId;
+  document.getElementById('editTimeName').textContent = habitName;
+  document.getElementById('editTimeValue').value = currentTime||'06:00';
+  openModal('mEditTime');
+}
+document.getElementById('btnConfirmEditTime').addEventListener('click', async()=>{
+  const id   = document.getElementById('editTimeTrackId').value;
+  const time = document.getElementById('editTimeValue').value;
+  const btn=document.getElementById('btnConfirmEditTime');btn.disabled=true;btn.textContent='Saving…';
+  try{
+    await apiPost('update_tracking_time',{id,time});
+    const entry = D.tracking.find(t=>t.id===id);
+    if(entry) entry.time = time;
+    closeModal('mEditTime');
+    toast('Time updated ✓','ok');
+    renderAll();
+  }catch(e){toast('Error: '+e.message,'err');}
+  finally{btn.disabled=false;btn.textContent='Save time';}
 });
 
 // ═══════════════════════════════════════════════
@@ -1128,8 +1247,8 @@ function initSheets() {
     return sheet;
   }
   ensureSheet(SHEET_NAMES.categories, ['id','name','color','created_at']);
-  ensureSheet(SHEET_NAMES.habits,     ['id','category_id','category_name','name','created_at']);
-  ensureSheet(SHEET_NAMES.tracking,   ['id','habit_id','habit_name','category_name','start_date','checked_days','created_at']);
+  ensureSheet(SHEET_NAMES.habits,     ['id','category_id','category_name','name','time','created_at']);
+  ensureSheet(SHEET_NAMES.tracking,   ['id','habit_id','habit_name','category_name','start_date','checked_days','time','created_at']);
 }
 
 function doGet(e) {
@@ -1152,12 +1271,12 @@ function doGet(e) {
       id:String(c.id), name:String(c.name||''), color:String(c.color||'#22c55e'), created_at:String(c.created_at||'')
     }));
     const habits = sheetToObjects(SHEET_NAMES.habits).map(h => ({
-      id:String(h.id), category_id:String(h.category_id||''), category_name:String(h.category_name||''), name:String(h.name||''), created_at:String(h.created_at||'')
+      id:String(h.id), category_id:String(h.category_id||''), category_name:String(h.category_name||''), name:String(h.name||''), time:String(h.time||''), created_at:String(h.created_at||'')
     }));
     const tracking = sheetToObjects(SHEET_NAMES.tracking).map(t => {
       let checked = [];
       try { checked = JSON.parse(String(t.checked_days||'[]')); } catch(e) {}
-      return { id:String(t.id), habit_id:String(t.habit_id||''), habit_name:String(t.habit_name||''), category_name:String(t.category_name||''), start_date:String(t.start_date||''), checked_days:checked, created_at:String(t.created_at||'') };
+      return { id:String(t.id), habit_id:String(t.habit_id||''), habit_name:String(t.habit_name||''), category_name:String(t.category_name||''), start_date:String(t.start_date||''), checked_days:checked, time:String(t.time||''), created_at:String(t.created_at||'') };
     });
     return makeResponse({ ok:true, categories, habits, tracking });
   } catch(err) { return makeResponse({ ok:false, error:err.message }); }
@@ -1216,8 +1335,23 @@ function doPost(e) {
       return makeResponse({ ok:true });
     }
     if (action === 'add_habit') {
-      const id = genId(); appendRow(SHEET_NAMES.habits, [id, data.category_id, data.category_name, data.name, now]);
+      const id = genId(); appendRow(SHEET_NAMES.habits, [id, data.category_id, data.category_name, data.name, data.time||'', now]);
       return makeResponse({ ok:true, id });
+    }
+    if (action === 'edit_habit') {
+      // col 4=name, col 5=time
+      updateCell(SHEET_NAMES.habits, data.id, 4, data.name);
+      updateCell(SHEET_NAMES.habits, data.id, 5, data.time||'');
+      // Also update habit_name in tracking rows for this habit
+      const tSheet = getSheet(SHEET_NAMES.tracking);
+      const tVals = tSheet.getDataRange().getValues();
+      for (let i = 1; i < tVals.length; i++) {
+        if (String(tVals[i][1]) === String(data.id)) {
+          tSheet.getRange(i+1, 3).setValue(data.name);   // col 3 = habit_name
+          tSheet.getRange(i+1, 7).setValue(data.time||''); // col 7 = time
+        }
+      }
+      return makeResponse({ ok:true });
     }
     if (action === 'delete_habit') {
       // Delete from Habits sheet
@@ -1232,10 +1366,11 @@ function doPost(e) {
     }
     if (action === 'start_tracking') {
       const id = genId();
-      appendRow(SHEET_NAMES.tracking, [id, data.habit_id, data.habit_name, data.category_name, data.start_date, JSON.stringify([]), now]);
+      appendRow(SHEET_NAMES.tracking, [id, data.habit_id, data.habit_name, data.category_name, data.start_date, JSON.stringify([]), data.time||'', now]);
       return makeResponse({ ok:true, id });
     }
     if (action === 'toggle_day') { updateCell(SHEET_NAMES.tracking, data.id, 6, JSON.stringify(data.checked_days)); return makeResponse({ ok:true }); }
+    if (action === 'update_tracking_time') { updateCell(SHEET_NAMES.tracking, data.id, 7, data.time||''); return makeResponse({ ok:true }); }
     if (action === 'update_start_date') {
       updateCell(SHEET_NAMES.tracking, data.id, 5, data.start_date);
       updateCell(SHEET_NAMES.tracking, data.id, 6, JSON.stringify(data.checked_days));
