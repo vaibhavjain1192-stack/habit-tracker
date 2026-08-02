@@ -1222,7 +1222,20 @@ refresh();
 </script>
 
 <!-- Code.gs content for download -->
-<pre id="codeGsContent" style="display:none">const SHEET_NAMES = {
+<pre id="codeGsContent" style="display:none">// ═══════════════════════════════════════════════════════
+//  66-DAY HABIT TRACKER — Google Apps Script Backend
+//  Version: Final + Time support (handles existing sheets)
+//
+//  Deploy as NEW deployment after replacing code.
+//  Execute as: Me  |  Who has access: Anyone
+//
+//  SHEETS:
+//  Categories : id | name | color | created_at
+//  Habits     : id | category_id | category_name | name | time | created_at
+//  Tracking   : id | habit_id | habit_name | category_name | start_date | checked_days | time | created_at
+// ═══════════════════════════════════════════════════════
+
+const SHEET_NAMES = {
   categories: 'Categories',
   habits:     'Habits',
   tracking:   'Tracking'
@@ -1234,52 +1247,106 @@ function makeResponse(data) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
-function initSheets() {
-  const ss = SpreadsheetApp.getActiveSpreadsheet();
-  function ensureSheet(name, headers) {
-    let sheet = ss.getSheetByName(name);
-    if (!sheet) {
-      sheet = ss.insertSheet(name);
-      sheet.getRange(1,1,1,headers.length).setValues([headers]);
-      sheet.getRange(1,1,1,headers.length).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
-      sheet.setFrozenRows(1);
-    }
+// ── Ensure sheet exists AND has all required columns (adds missing ones) ──
+function ensureSheet(ss, name, requiredHeaders) {
+  let sheet = ss.getSheetByName(name);
+  if (!sheet) {
+    sheet = ss.insertSheet(name);
+    sheet.getRange(1,1,1,requiredHeaders.length).setValues([requiredHeaders]);
+    sheet.getRange(1,1,1,requiredHeaders.length)
+      .setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
+    sheet.setFrozenRows(1);
     return sheet;
   }
-  ensureSheet(SHEET_NAMES.categories, ['id','name','color','created_at']);
-  ensureSheet(SHEET_NAMES.habits,     ['id','category_id','category_name','name','time','created_at']);
-  ensureSheet(SHEET_NAMES.tracking,   ['id','habit_id','habit_name','category_name','start_date','checked_days','time','created_at']);
+  // Sheet exists — check for missing columns and add them
+  const lastCol = sheet.getLastColumn();
+  const existingHeaders = lastCol > 0
+    ? sheet.getRange(1,1,1,lastCol).getValues()[0].map(String)
+    : [];
+  requiredHeaders.forEach(h => {
+    if (!existingHeaders.includes(h)) {
+      const newCol = sheet.getLastColumn() + 1;
+      sheet.getRange(1, newCol).setValue(h);
+      sheet.getRange(1, newCol).setFontWeight('bold').setBackground('#1a1a2e').setFontColor('#ffffff');
+    }
+  });
+  return sheet;
+}
+
+function initSheets() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  ensureSheet(ss, SHEET_NAMES.categories, ['id','name','color','created_at']);
+  ensureSheet(ss, SHEET_NAMES.habits,     ['id','category_id','category_name','name','time','created_at']);
+  ensureSheet(ss, SHEET_NAMES.tracking,   ['id','habit_id','habit_name','category_name','start_date','checked_days','time','created_at']);
+}
+
+// ── Convert sheet rows to objects using ACTUAL header row ──
+function sheetToObjects(ss, sheetName) {
+  const sheet = ss.getSheetByName(sheetName);
+  if (!sheet) return [];
+  const lastRow = sheet.getLastRow();
+  const lastCol = sheet.getLastColumn();
+  if (lastRow < 2 || lastCol < 1) return [];
+  const data = sheet.getRange(1, 1, lastRow, lastCol).getValues();
+  const headers = data[0].map(String);
+  return data.slice(1).map(row => {
+    const obj = {};
+    headers.forEach((h,i) => { obj[h] = row[i]; });
+    return obj;
+  }).filter(obj => obj.id && String(obj.id).trim() !== '');
+}
+
+// ── Find column number by header name (1-indexed) ──
+function colOf(ss, sheetName, headerName) {
+  const sheet = ss.getSheetByName(sheetName);
+  if (!sheet) return -1;
+  const lastCol = sheet.getLastColumn();
+  if (lastCol < 1) return -1;
+  const headers = sheet.getRange(1,1,1,lastCol).getValues()[0].map(String);
+  const idx = headers.indexOf(headerName);
+  return idx === -1 ? -1 : idx + 1; // 1-indexed
 }
 
 function doGet(e) {
   try {
     initSheets();
     const ss = SpreadsheetApp.getActiveSpreadsheet();
-    function sheetToObjects(sheetName) {
-      const sheet = ss.getSheetByName(sheetName);
-      if (!sheet) return [];
-      const data = sheet.getDataRange().getValues();
-      if (data.length < 2) return [];
-      const headers = data[0];
-      return data.slice(1).map(row => {
-        const obj = {};
-        headers.forEach((h,i) => { obj[h] = row[i]; });
-        return obj;
-      }).filter(obj => obj.id);
-    }
-    const categories = sheetToObjects(SHEET_NAMES.categories).map(c => ({
-      id:String(c.id), name:String(c.name||''), color:String(c.color||'#22c55e'), created_at:String(c.created_at||'')
+
+    const categories = sheetToObjects(ss, SHEET_NAMES.categories).map(c => ({
+      id:         String(c.id),
+      name:       String(c.name   || ''),
+      color:      String(c.color  || '#22c55e'),
+      created_at: String(c.created_at || '')
     }));
-    const habits = sheetToObjects(SHEET_NAMES.habits).map(h => ({
-      id:String(h.id), category_id:String(h.category_id||''), category_name:String(h.category_name||''), name:String(h.name||''), time:String(h.time||''), created_at:String(h.created_at||'')
+
+    const habits = sheetToObjects(ss, SHEET_NAMES.habits).map(h => ({
+      id:            String(h.id),
+      category_id:   String(h.category_id   || ''),
+      category_name: String(h.category_name || ''),
+      name:          String(h.name          || ''),
+      time:          String(h.time          || ''),
+      created_at:    String(h.created_at    || '')
     }));
-    const tracking = sheetToObjects(SHEET_NAMES.tracking).map(t => {
+
+    const tracking = sheetToObjects(ss, SHEET_NAMES.tracking).map(t => {
       let checked = [];
-      try { checked = JSON.parse(String(t.checked_days||'[]')); } catch(e) {}
-      return { id:String(t.id), habit_id:String(t.habit_id||''), habit_name:String(t.habit_name||''), category_name:String(t.category_name||''), start_date:String(t.start_date||''), checked_days:checked, time:String(t.time||''), created_at:String(t.created_at||'') };
+      try { checked = JSON.parse(String(t.checked_days || '[]')); } catch(e) {}
+      return {
+        id:            String(t.id),
+        habit_id:      String(t.habit_id      || ''),
+        habit_name:    String(t.habit_name    || ''),
+        category_name: String(t.category_name || ''),
+        start_date:    String(t.start_date    || ''),
+        checked_days:  checked,
+        time:          String(t.time          || ''),
+        created_at:    String(t.created_at    || '')
+      };
     });
+
     return makeResponse({ ok:true, categories, habits, tracking });
-  } catch(err) { return makeResponse({ ok:false, error:err.message }); }
+  } catch(err) {
+    return makeResponse({ ok:false, error: err.message });
+  }
 }
 
 function doPost(e) {
@@ -1289,31 +1356,45 @@ function doPost(e) {
     const action  = payload.action;
     const data    = payload.data || {};
     const ss      = SpreadsheetApp.getActiveSpreadsheet();
-    function genId() { return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+
+    function genId() {
+      return Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+    }
     function getSheet(name) { return ss.getSheetByName(name); }
     function appendRow(sn, row) { getSheet(sn).appendRow(row); }
+
     function findRowIndex(sn, id) {
       const sheet = getSheet(sn);
-      const ids = sheet.getRange(1,1,sheet.getLastRow(),1).getValues().flat();
-      return ids.indexOf(String(id));
+      const lastRow = sheet.getLastRow();
+      if (lastRow < 1) return -1;
+      const ids = sheet.getRange(1,1,lastRow,1).getValues().flat().map(String);
+      return ids.indexOf(String(id)); // 0-based; actual row = index+1
     }
+
     function deleteRowById(sn, id) {
-      const sheet = getSheet(sn);
       const idx = findRowIndex(sn, id);
-      if (idx > 0) sheet.deleteRow(idx+1);
+      if (idx > 0) getSheet(sn).deleteRow(idx+1);
     }
-    function updateCell(sn, id, col, val) {
-      const sheet = getSheet(sn);
+
+    // Update a cell by header name — uses actual column position
+    function updateByHeader(sn, id, headerName, value) {
+      const col = colOf(ss, sn, headerName);
+      if (col === -1) return;
       const idx = findRowIndex(sn, id);
-      if (idx > 0) sheet.getRange(idx+1, col).setValue(val);
+      if (idx > 0) getSheet(sn).getRange(idx+1, col).setValue(value);
     }
+
     const now = new Date().toISOString();
+
+    // ── ADD CATEGORY ──
     if (action === 'add_category') {
-      const id = genId(); appendRow(SHEET_NAMES.categories, [id, data.name, data.color, now]);
+      const id = genId();
+      appendRow(SHEET_NAMES.categories, [id, data.name, data.color, now]);
       return makeResponse({ ok:true, id });
     }
+
+    // ── DELETE CATEGORY (cascade) ──
     if (action === 'delete_category') {
-      // Collect habit IDs belonging to this category, then cascade-delete tracking too
       const habitSheet = getSheet(SHEET_NAMES.habits);
       const habitVals  = habitSheet.getDataRange().getValues();
       const habitIds   = [];
@@ -1323,7 +1404,6 @@ function doPost(e) {
           habitSheet.deleteRow(i+1);
         }
       }
-      // Delete any tracking rows whose habit_id matches
       if (habitIds.length) {
         const tSheet = getSheet(SHEET_NAMES.tracking);
         const tVals  = tSheet.getDataRange().getValues();
@@ -1334,29 +1414,37 @@ function doPost(e) {
       deleteRowById(SHEET_NAMES.categories, data.id);
       return makeResponse({ ok:true });
     }
+
+    // ── ADD HABIT ──
     if (action === 'add_habit') {
-      const id = genId(); appendRow(SHEET_NAMES.habits, [id, data.category_id, data.category_name, data.name, data.time||'', now]);
+      const id = genId();
+      appendRow(SHEET_NAMES.habits, [id, data.category_id, data.category_name, data.name, data.time||'', now]);
       return makeResponse({ ok:true, id });
     }
+
+    // ── EDIT HABIT (name + time) ──
     if (action === 'edit_habit') {
-      // col 4=name, col 5=time
-      updateCell(SHEET_NAMES.habits, data.id, 4, data.name);
-      updateCell(SHEET_NAMES.habits, data.id, 5, data.time||'');
-      // Also update habit_name in tracking rows for this habit
+      updateByHeader(SHEET_NAMES.habits, data.id, 'name', data.name);
+      updateByHeader(SHEET_NAMES.habits, data.id, 'time', data.time||'');
+      // Also sync habit_name and time in all tracking rows for this habit
       const tSheet = getSheet(SHEET_NAMES.tracking);
-      const tVals = tSheet.getDataRange().getValues();
-      for (let i = 1; i < tVals.length; i++) {
-        if (String(tVals[i][1]) === String(data.id)) {
-          tSheet.getRange(i+1, 3).setValue(data.name);   // col 3 = habit_name
-          tSheet.getRange(i+1, 7).setValue(data.time||''); // col 7 = time
+      const tData  = tSheet.getDataRange().getValues();
+      const tHeaders = tData[0].map(String);
+      const habitNameCol = tHeaders.indexOf('habit_name') + 1;
+      const timeCol      = tHeaders.indexOf('time') + 1;
+      const habitIdCol   = tHeaders.indexOf('habit_id');
+      for (let i = 1; i < tData.length; i++) {
+        if (String(tData[i][habitIdCol]) === String(data.id)) {
+          if (habitNameCol > 0) tSheet.getRange(i+1, habitNameCol).setValue(data.name);
+          if (timeCol > 0)      tSheet.getRange(i+1, timeCol).setValue(data.time||'');
         }
       }
       return makeResponse({ ok:true });
     }
+
+    // ── DELETE HABIT (cascade) ──
     if (action === 'delete_habit') {
-      // Delete from Habits sheet
       deleteRowById(SHEET_NAMES.habits, data.id);
-      // Cascade-delete any tracking entries for this habit (col 2 = habit_id, index 1)
       const tSheet = getSheet(SHEET_NAMES.tracking);
       const tVals  = tSheet.getDataRange().getValues();
       for (let i = tVals.length-1; i >= 1; i--) {
@@ -1364,21 +1452,44 @@ function doPost(e) {
       }
       return makeResponse({ ok:true });
     }
+
+    // ── START TRACKING ──
     if (action === 'start_tracking') {
       const id = genId();
       appendRow(SHEET_NAMES.tracking, [id, data.habit_id, data.habit_name, data.category_name, data.start_date, JSON.stringify([]), data.time||'', now]);
       return makeResponse({ ok:true, id });
     }
-    if (action === 'toggle_day') { updateCell(SHEET_NAMES.tracking, data.id, 6, JSON.stringify(data.checked_days)); return makeResponse({ ok:true }); }
-    if (action === 'update_tracking_time') { updateCell(SHEET_NAMES.tracking, data.id, 7, data.time||''); return makeResponse({ ok:true }); }
-    if (action === 'update_start_date') {
-      updateCell(SHEET_NAMES.tracking, data.id, 5, data.start_date);
-      updateCell(SHEET_NAMES.tracking, data.id, 6, JSON.stringify(data.checked_days));
+
+    // ── TOGGLE DAY ──
+    if (action === 'toggle_day') {
+      updateByHeader(SHEET_NAMES.tracking, data.id, 'checked_days', JSON.stringify(data.checked_days));
       return makeResponse({ ok:true });
     }
-    if (action === 'remove_tracking') { deleteRowById(SHEET_NAMES.tracking, data.id); return makeResponse({ ok:true }); }
+
+    // ── UPDATE TRACKING TIME ──
+    if (action === 'update_tracking_time') {
+      updateByHeader(SHEET_NAMES.tracking, data.id, 'time', data.time||'');
+      return makeResponse({ ok:true });
+    }
+
+    // ── UPDATE START DATE ──
+    if (action === 'update_start_date') {
+      updateByHeader(SHEET_NAMES.tracking, data.id, 'start_date',   data.start_date);
+      updateByHeader(SHEET_NAMES.tracking, data.id, 'checked_days', JSON.stringify(data.checked_days));
+      return makeResponse({ ok:true });
+    }
+
+    // ── REMOVE TRACKING ──
+    if (action === 'remove_tracking') {
+      deleteRowById(SHEET_NAMES.tracking, data.id);
+      return makeResponse({ ok:true });
+    }
+
     return makeResponse({ ok:false, error:'Unknown action: '+action });
-  } catch(err) { return makeResponse({ ok:false, error:err.message }); }
+
+  } catch(err) {
+    return makeResponse({ ok:false, error: err.message });
+  }
 }</pre>
 </body>
 </html>
