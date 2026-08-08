@@ -281,6 +281,22 @@ input,select{font-family:var(--font)}
 .empty h3{font-size:14px;color:var(--tx);font-weight:600;margin-bottom:6px}
 .empty p{font-size:12px;line-height:1.6}
 
+/* MISSED REASON */
+.dc.missed-noted{background:var(--s3);color:var(--tx3);border-color:var(--amber);position:relative}
+.dc.missed-noted .dc-note{position:absolute;top:2px;right:2px;width:5px;height:5px;border-radius:50%;background:var(--amber)}
+.missed-log{margin-top:10px;border-top:1px solid var(--bd);padding-top:8px}
+.missed-log-title{font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.5px;color:var(--tx3);margin-bottom:6px;display:flex;align-items:center;gap:6px}
+.missed-log-item{display:flex;gap:8px;padding:6px 8px;background:var(--s2);border-radius:var(--rs);margin-bottom:4px;align-items:flex-start}
+.missed-log-day{font-size:11px;font-weight:700;color:var(--amber);flex-shrink:0;min-width:52px}
+.missed-log-reason{font-size:12px;color:var(--tx2);flex:1;line-height:1.4}
+.missed-log-del{background:none;border:none;color:var(--tx3);cursor:pointer;font-size:13px;padding:0 2px;flex-shrink:0;line-height:1}
+.missed-log-del:hover{color:var(--red)}
+/* REASON MODAL */
+.reason-modal-day{font-size:13px;color:var(--tx2);margin-bottom:12px}
+.reason-modal-day strong{color:var(--tx)}
+.reason-chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.reason-chip{padding:5px 12px;border-radius:20px;border:1px solid var(--bd2);background:var(--s2);color:var(--tx2);font-size:12px;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:.15s}
+.reason-chip:active,.reason-chip.sel{background:var(--amber-bg);border-color:var(--amber);color:var(--amber)}
 /* UTILS */
 .row{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .ml{margin-left:auto}
@@ -463,6 +479,33 @@ input,select{font-family:var(--font)}
   </div>
 </div>
 
+<!-- MISSED REASON MODAL -->
+<div class="overlay" id="mMissedReason" style="display:none">
+  <div class="modal">
+    <h3>Why was this missed? 📝</h3>
+    <div class="reason-modal-day" id="mReasonDay"></div>
+    <!-- Quick-pick chips -->
+    <div class="reason-chips">
+      <div class="reason-chip" onclick="pickReasonChip(this,'Too tired')">😴 Too tired</div>
+      <div class="reason-chip" onclick="pickReasonChip(this,'Forgot')">🤦 Forgot</div>
+      <div class="reason-chip" onclick="pickReasonChip(this,'Travelling')">✈️ Travelling</div>
+      <div class="reason-chip" onclick="pickReasonChip(this,'Unwell / sick')">🤒 Unwell</div>
+      <div class="reason-chip" onclick="pickReasonChip(this,'Too busy')">⏰ Too busy</div>
+      <div class="reason-chip" onclick="pickReasonChip(this,'Family event')">👨‍👩‍👧 Family event</div>
+      <div class="reason-chip" onclick="pickReasonChip(this,'No motivation')">😔 No motivation</div>
+      <div class="reason-chip" onclick="pickReasonChip(this,'Work / study')">💼 Work/study</div>
+    </div>
+    <div class="fg">
+      <label>Or write your own reason</label>
+      <input type="text" id="inMissedReason" placeholder="e.g. Had a late night..." maxlength="120">
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-sm" onclick="closeModal('mMissedReason')">Skip</button>
+      <button class="btn btn-sm btn-green" id="btnSaveReason">Save reason</button>
+    </div>
+  </div>
+</div>
+
 <!-- ADD / EDIT SLOT MODAL -->
 <div class="overlay" id="mSlot" style="display:none">
   <div class="modal">
@@ -552,6 +595,8 @@ async function refresh(silent) {
     D.habits     = res.habits     || [];
     D.tracking   = res.tracking   || [];
     D.slots      = res.slots      || [];
+    // Keep a global ref for buildGrid to access missed_reasons
+    window._D_tracking_ref = D.tracking;
     setStatus('ok','Connected');
     renderAll();
   } catch(e) {
@@ -645,16 +690,32 @@ function buildGrid(sd, chk, dI, tid) {
     cells += `<div class="dc empty"></div>`;
   }
   // 66 day cells
+  // Get missed reasons for this tracking entry (if tid provided)
+  const trackEntry = tid ? (window._D_tracking_ref||[]).find(t=>t.id===tid) : null;
+  const missedReasons = trackEntry ? (trackEntry.missed_reasons||{}) : {};
+
   for(let d=0; d<66; d++){
     const isDone=chk.includes(d), isToday=d===dI, isFuture=d>dI;
+    const hasReason = !isDone && !isFuture && missedReasons[d];
     let cls='dc ';
-    if(isDone) cls+='done'; else if(isToday) cls+='today'; else if(isFuture) cls+='future'; else cls+='missed';
+    if(isDone) cls+='done';
+    else if(isToday) cls+='today';
+    else if(isFuture) cls+='future';
+    else if(hasReason) cls+='missed missed-noted';
+    else cls+='missed';
     const cellDate  = addDays(sd, d);
-    const dateLabel = fmtCell(cellDate);  // "25/7"
+    const dateLabel = fmtCell(cellDate);
+    const titleTxt  = hasReason
+      ? `Day ${d+1} · ${fmtDay(cellDate)} · ${fmtDate(cellDate)} · 📝 ${missedReasons[d]}`
+      : `Day ${d+1} · ${fmtDay(cellDate)} · ${fmtDate(cellDate)}`;
     const click = !isFuture && tid ? `onclick="toggleDay('${esc2(tid)}',${d},event)"` : '';
-    cells += `<div class="${cls}" title="Day ${d+1} · ${fmtDay(cellDate)} · ${fmtDate(cellDate)}" ${click}>
+    const longPress = !isDone && !isFuture && d<dI && tid
+      ? `oncontextmenu="event.preventDefault();openMissedReasonModal('${esc2(tid)}',${d},'${fmtShort(cellDate)}')" ontouchstart="handleCellTouch('${esc2(tid)}',${d},'${fmtShort(cellDate)}',event)"  ontouchend="cancelCellTouch()" ontouchmove="cancelCellTouch()"`
+      : '';
+    cells += `<div class="${cls}" title="${titleTxt}" ${click} ${longPress}>
       <span class="dc-num">${d+1}</span>
       <span class="dc-date">${dateLabel}</span>
+      ${hasReason ? '<span class="dc-note"></span>' : ''}
     </div>`;
   }
   return { headerHtml, cells };
@@ -971,7 +1032,7 @@ function renderTracker(){
     const cat   = D.categories.find(c=>c.name===t.category_name);
     const color = cat?(cat.color||'#22c55e'):'#22c55e';
     const cardId = 'hc_'+t.id;
-    const isExpanded = expandedCards.has(cardId);  // ← restore expanded state
+    const isExpanded = expandedCards.has(cardId);  // restore expanded state
 
     if(isBuilt){
       html+=`<div class="done-banner">
@@ -1032,14 +1093,122 @@ function renderTracker(){
     </div>`;
   }
   listEl.innerHTML=html;
+  // Render missed logs for all expanded cards
+  entries.forEach(t=>{
+    const cardId='hc_'+t.id;
+    if(expandedCards.has(cardId)) renderMissedLog(t.id);
+  });
 }
 
 function toggleCard(id){
   if(expandedCards.has(id)) expandedCards.delete(id);
-  else expandedCards.add(id);
-  // Toggle the class directly without full re-render
+  else {
+    expandedCards.add(id);
+    // Render missed log when card opens
+    const tid = id.replace('hc_','');
+    setTimeout(()=>renderMissedLog(tid), 50);
+  }
   const el=document.getElementById(id);
   if(el) el.classList.toggle('expanded');
+}
+
+// ═══════════════════════════════════════════════
+//  MISSED REASONS
+// ═══════════════════════════════════════════════
+// Long-press on mobile to add reason to a missed cell
+let _cellTouchTimer = null;
+function handleCellTouch(tid, d, dateStr, evt){
+  evt.stopPropagation();
+  _cellTouchTimer = setTimeout(()=>{
+    _cellTouchTimer = null;
+    openMissedReasonModal(tid, d, dateStr);
+  }, 600); // 600ms long press
+}
+function cancelCellTouch(){
+  if(_cellTouchTimer){ clearTimeout(_cellTouchTimer); _cellTouchTimer=null; }
+}
+let pendingReason = {}; // {tid, dayIdx, dayDate}
+
+function openMissedReasonModal(tid, d, dateStr){
+  pendingReason = {tid, d, dateStr};
+  document.getElementById('mReasonDay').innerHTML =
+    `Habit: <strong>${esc(D.tracking.find(t=>t.id===tid)?.habit_name||'')}</strong> &nbsp;·&nbsp; Day ${d+1} &nbsp;·&nbsp; ${dateStr}`;
+  document.getElementById('inMissedReason').value = '';
+  // Pre-fill if reason already exists
+  const entry = D.tracking.find(t=>t.id===tid);
+  const existing = (entry?.missed_reasons||{})[d]||'';
+  document.getElementById('inMissedReason').value = existing;
+  // Reset chips
+  document.querySelectorAll('.reason-chip').forEach(c=>c.classList.remove('sel'));
+  if(existing){
+    document.querySelectorAll('.reason-chip').forEach(c=>{
+      if(c.dataset.val===existing||c.textContent.trim().endsWith(existing)) c.classList.add('sel');
+    });
+  }
+  openModal('mMissedReason');
+  setTimeout(()=>document.getElementById('inMissedReason').focus(),200);
+}
+
+function pickReasonChip(el, reason){
+  document.querySelectorAll('.reason-chip').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');
+  document.getElementById('inMissedReason').value = reason;
+}
+
+document.getElementById('btnSaveReason').addEventListener('click', async()=>{
+  const reason = document.getElementById('inMissedReason').value.trim();
+  const {tid, d} = pendingReason;
+  const entry = D.tracking.find(t=>t.id===tid);
+  if(!entry) return;
+  if(!entry.missed_reasons) entry.missed_reasons = {};
+  if(reason) entry.missed_reasons[d] = reason;
+  else delete entry.missed_reasons[d];
+  closeModal('mMissedReason');
+  patchDayCell(tid, d, entry.checked_days||[]);
+  renderMissedLog(tid);
+  try{
+    await apiPost('save_missed_reason',{id:tid, missed_reasons: entry.missed_reasons});
+    toast('Reason saved ✓','ok');
+  }catch(e){toast('Error saving reason','err');}
+});
+
+function renderMissedLog(tid){
+  const cardEl = document.getElementById('hc_'+tid);
+  if(!cardEl) return;
+  const entry = D.tracking.find(t=>t.id===tid);
+  if(!entry) return;
+  const reasons = entry.missed_reasons||{};
+  const sd = normalizeDate(entry.start_date||todayStr());
+  const keys = Object.keys(reasons).filter(k=>reasons[k]).sort((a,b)=>Number(a)-Number(b));
+  let logEl = cardEl.querySelector('.missed-log');
+  if(!keys.length){
+    if(logEl) logEl.remove();
+    return;
+  }
+  const logHtml = `<div class="missed-log">
+    <div class="missed-log-title">📝 Missed day notes (${keys.length})</div>
+    ${keys.map(k=>`
+      <div class="missed-log-item">
+        <div class="missed-log-day">Day ${Number(k)+1}<br><span style="font-weight:400;color:var(--tx3)">${fmtShort(addDays(sd,Number(k)))}</span></div>
+        <div class="missed-log-reason">${esc(reasons[k])}</div>
+        <button class="missed-log-del" onclick="deleteMissedReason('${esc2(tid)}',${k})" title="Remove">✕</button>
+      </div>`).join('')}
+  </div>`;
+  if(logEl) logEl.outerHTML = logHtml;
+  else {
+    const actionsEl = cardEl.querySelector('.hcard-actions');
+    if(actionsEl) actionsEl.insertAdjacentHTML('afterend', logHtml);
+  }
+}
+
+async function deleteMissedReason(tid, d){
+  const entry = D.tracking.find(t=>t.id===tid);
+  if(!entry||!entry.missed_reasons) return;
+  delete entry.missed_reasons[d];
+  patchDayCell(tid, d, entry.checked_days||[]);
+  renderMissedLog(tid);
+  try{ await apiPost('save_missed_reason',{id:tid, missed_reasons: entry.missed_reasons}); }
+  catch(e){ toast('Error','err'); }
 }
 
 async function toggleDay(tid, d, evt){
@@ -1047,17 +1216,24 @@ async function toggleDay(tid, d, evt){
   const entry=D.tracking.find(t=>t.id===tid);
   if(!entry)return;
   const chk=[...(entry.checked_days||[])];
-  const i=chk.indexOf(d); i===-1?chk.push(d):chk.splice(i,1);
+  const i=chk.indexOf(d);
+  const wasDone = i!==-1;
+  i===-1?chk.push(d):chk.splice(i,1);
   entry.checked_days=chk;
-  // Patch the clicked cell directly — no full re-render so card stays open
+  // If marking as MISSED (un-checking) a past day, offer to add reason
+  const dI=dayIdx(normalizeDate(entry.start_date));
+  const nowMissed = wasDone && d<dI; // just unmarked a past day
   patchDayCell(tid, d, chk);
-  // Update the progress/meta inside the card
   patchCardProgress(tid, entry);
-  // Refresh home list and analytics (they don't affect tracker card state)
   renderActiveHabits();
   renderAnalytics();
   try{await apiPost('toggle_day',{id:tid,checked_days:chk});}
   catch(e){toast('Save failed','err');await refresh(true);}
+  // After save, prompt for reason if it's now a missed past day
+  if(nowMissed){
+    const sd=normalizeDate(entry.start_date||todayStr());
+    openMissedReasonModal(tid, d, fmtDate(addDays(sd,d)));
+  }
 }
 
 function patchDayCell(tid, dayNum, chk){
@@ -1684,7 +1860,7 @@ function initSheets() {
   const ss = SpreadsheetApp.getActiveSpreadsheet();
   ensureSheet(ss, SHEET_NAMES.categories, ['id','name','color','created_at']);
   ensureSheet(ss, SHEET_NAMES.habits,     ['id','category_id','category_name','name','time','created_at']);
-  ensureSheet(ss, SHEET_NAMES.tracking,   ['id','habit_id','habit_name','category_name','start_date','checked_days','time','created_at']);
+  ensureSheet(ss, SHEET_NAMES.tracking,   ['id','habit_id','habit_name','category_name','start_date','checked_days','time','missed_reasons','created_at']);
   ensureSheet(ss, SHEET_NAMES.slots,      ['id','name','start_time','end_time','color','habit_ids','created_at']);
 }
 
@@ -1739,15 +1915,18 @@ function doGet(e) {
     const tracking = sheetToObjects(ss, SHEET_NAMES.tracking).map(t => {
       let checked = [];
       try { checked = JSON.parse(String(t.checked_days || '[]')); } catch(e) {}
+      let missedReasons = {};
+      try { missedReasons = JSON.parse(String(t.missed_reasons || '{}')); } catch(e) {}
       return {
-        id:            String(t.id),
-        habit_id:      String(t.habit_id      || ''),
-        habit_name:    String(t.habit_name    || ''),
-        category_name: String(t.category_name || ''),
-        start_date:    String(t.start_date    || ''),
-        checked_days:  checked,
-        time:          parseTimeField(t.time),
-        created_at:    String(t.created_at    || '')
+        id:             String(t.id),
+        habit_id:       String(t.habit_id      || ''),
+        habit_name:     String(t.habit_name    || ''),
+        category_name:  String(t.category_name || ''),
+        start_date:     String(t.start_date    || ''),
+        checked_days:   checked,
+        time:           parseTimeField(t.time),
+        missed_reasons: missedReasons,
+        created_at:     String(t.created_at    || '')
       };
     });
 
@@ -1892,7 +2071,7 @@ function doPost(e) {
     // ── START TRACKING ──
     if (action === 'start_tracking') {
       const id = genId();
-      appendRowWithTime(SHEET_NAMES.tracking, [id, data.habit_id, data.habit_name, data.category_name, data.start_date, JSON.stringify([]), data.time||'', now], 6);
+      appendRowWithTime(SHEET_NAMES.tracking, [id, data.habit_id, data.habit_name, data.category_name, data.start_date, JSON.stringify([]), data.time||'', JSON.stringify({}), now], 6);
       return makeResponse({ ok:true, id });
     }
 
@@ -1918,6 +2097,12 @@ function doPost(e) {
     // ── REMOVE TRACKING ──
     if (action === 'remove_tracking') {
       deleteRowById(SHEET_NAMES.tracking, data.id);
+      return makeResponse({ ok:true });
+    }
+
+    // ── SAVE MISSED REASON ──
+    if (action === 'save_missed_reason') {
+      updateByHeader(SHEET_NAMES.tracking, data.id, 'missed_reasons', JSON.stringify(data.missed_reasons||{}));
       return makeResponse({ ok:true });
     }
 
