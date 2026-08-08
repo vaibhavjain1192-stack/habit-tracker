@@ -174,6 +174,25 @@ input,select{font-family:var(--font)}
 .dc.future .dc-date{opacity:.5}
 @keyframes ring{0%,100%{box-shadow:0 0 0 0 rgba(34,197,94,.4)}50%{box-shadow:0 0 0 2px rgba(34,197,94,.15)}}
 
+/* SLOTS */
+.slot-block{background:var(--s1);border:1px solid var(--bd);border-radius:var(--r);margin-bottom:10px;overflow:hidden}
+.slot-head{display:flex;align-items:center;gap:10px;padding:11px 14px;cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none}
+.slot-head:active{background:var(--s2)}
+.slot-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0}
+.slot-head-name{flex:1;font-size:14px;font-weight:700}
+.slot-head-time{font-size:11px;color:var(--tx3)}
+.slot-head-count{font-size:11px;color:var(--tx3)}
+.slot-body{display:none;border-top:1px solid var(--bd);padding:10px 12px}
+.slot-block.open .slot-body{display:block}
+.slot-chevron{font-size:11px;color:var(--tx3);transition:.2s;flex-shrink:0}
+.slot-block.open .slot-chevron{transform:rotate(180deg)}
+.slot-habit-item{display:flex;align-items:center;gap:8px;padding:6px 4px;border-bottom:1px solid var(--bd);font-size:13px}
+.slot-habit-item:last-child{border-bottom:none}
+.slot-habit-name{flex:1}
+.slot-habit-check{width:18px;height:18px;border-radius:50%;border:2px solid var(--bd2);display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;font-size:10px;font-weight:700;-webkit-tap-highlight-color:transparent}
+.slot-habit-check.done{background:var(--green);border-color:var(--green);color:#000}
+.slot-habit-check.today-ring{border-color:var(--green);color:var(--green)}
+.unslotted-label{font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;color:var(--tx3);padding:8px 2px 6px;margin-top:4px}
 /* TIME SLOT HEADER */
 .time-slot-header{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:var(--tx3);padding:10px 2px 6px;margin-top:4px;border-bottom:1px solid var(--bd);margin-bottom:6px}
 .time-slot-header:first-child{margin-top:0;padding-top:0}
@@ -270,6 +289,7 @@ input,select{font-family:var(--font)}
     <!-- Sub tabs -->
     <div class="sub-tabs">
       <button class="sub-tab active" data-sub="active">Active Habits</button>
+      <button class="sub-tab" data-sub="slots">Slots</button>
       <button class="sub-tab" data-sub="all">All Habits</button>
     </div>
 
@@ -277,6 +297,18 @@ input,select{font-family:var(--font)}
     <div id="sub-active">
       <div id="activeHabitsList">
         <div class="loading"><div class="spinner"></div>Loading…</div>
+      </div>
+    </div>
+
+    <!-- SLOTS -->
+    <div id="sub-slots" style="display:none">
+      <div class="sec-head">
+        <h2>Habit Slots</h2>
+        <button class="btn btn-sm btn-green" id="btnAddSlot">+ New Slot</button>
+      </div>
+      <p style="font-size:12px;color:var(--tx3);margin-bottom:12px">Group habits into named slots like "Morning Routine" or "Evening Wind-down".</p>
+      <div id="slotList">
+        <div class="loading"><div class="spinner"></div></div>
       </div>
     </div>
 
@@ -389,18 +421,51 @@ input,select{font-family:var(--font)}
   </div>
 </div>
 
+<!-- ADD / EDIT SLOT MODAL -->
+<div class="overlay" id="mSlot" style="display:none">
+  <div class="modal">
+    <h3 id="mSlotTitle">New slot</h3>
+    <input type="hidden" id="slotId">
+    <div class="fg">
+      <label>Slot name</label>
+      <input type="text" id="slotName" placeholder="e.g. Morning Routine" maxlength="50">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="fg">
+        <label>Start time</label>
+        <input type="time" id="slotStart" value="06:00" style="color-scheme:dark">
+      </div>
+      <div class="fg">
+        <label>End time</label>
+        <input type="time" id="slotEnd" value="08:00" style="color-scheme:dark">
+      </div>
+    </div>
+    <div class="fg" style="margin-top:4px">
+      <label>Colour</label>
+      <div class="color-swatches" id="slotColorSwatches"></div>
+    </div>
+    <div class="fg" style="margin-top:4px">
+      <label>Add habits to this slot</label>
+      <div id="slotHabitPicker" style="max-height:200px;overflow-y:auto;background:var(--s2);border:1px solid var(--bd2);border-radius:var(--rs);padding:8px"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-sm" onclick="closeModal('mSlot')">Cancel</button>
+      <button class="btn btn-sm btn-green" id="btnConfirmSlot">Save slot</button>
+    </div>
+  </div>
+</div>
+
 <script>
 // ═══════════════════════════════════════════════
 //  CONFIG — URL hardcoded, no setup UI needed
 // ═══════════════════════════════════════════════
-const CFG_KEY = 'ht_api_v1';
-// Pre-fill from localStorage so user doesn't need to re-enter after page reload
-let API_URL = localStorage.getItem(CFG_KEY) || 'https://script.google.com/macros/s/AKfycbwRnmu5H_cGiStwTouBJM-KgcrJPRgwdVFxeT5xD4TMBssKx5rcwpdnU1LKZlNkSwlJ/exec';
-// Always persist it
-localStorage.setItem(CFG_KEY, API_URL);
+// API URL is always hardcoded — no localStorage caching to avoid stale URL bugs
+// Clear any old cached URL immediately
+localStorage.removeItem('ht_api_v1');
+const API_URL = 'https://script.google.com/macros/s/AKfycbwRnmu5H_cGiStwTouBJM-KgcrJPRgwdVFxeT5xD4TMBssKx5rcwpdnU1LKZlNkSwlJ/exec';
 
 // ── STATE (always fetched fresh from Sheets, never cached) ──
-let D = { categories:[], habits:[], tracking:[] };
+let D = { categories:[], habits:[], tracking:[], slots:[] };
 let activeCatOpenId = null;
 let pendingTrack = {};
 let selColor = '#22c55e';
@@ -438,7 +503,7 @@ async function apiPost(action, data) {
 // ═══════════════════════════════════════════════
 async function refresh(silent) {
   if (!API_URL) { setStatus('err','Not connected'); return; }
-  if (!silent) setStatus('loading','Syncing…');
+  if (!silent) setStatus('loading','Syncing...');
   try {
     const res = await apiGet();
     D.categories = res.categories || [];
@@ -486,7 +551,7 @@ function normalizeDate(raw) {
     return d.getUTCFullYear()+'-'+p2(d.getUTCMonth()+1)+'-'+p2(d.getUTCDate());
   }
   // DD/MM/YYYY (Indian format from Sheets)
-  const dmySlash = String(raw).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const dmySlash = String(raw).match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
   if (dmySlash) {
     const [,d,m,y] = dmySlash;
     // Disambiguate: if first number > 12, it must be day
@@ -525,9 +590,9 @@ function fmtDay(ds){
 // Days are Mon→Sun columns; empty placeholder cells pad the start to align day 1 correctly
 const WEEK_DAYS = ['Mon','Tue','Wed','Thu','Fri','Sat','Sun'];
 function buildGrid(sd, chk, dI, tid) {
-  // Find which column (0=Mon…6=Sun) day 1 falls on
-  const startDow = new Date(normalizeDate(sd)+' 00:00:00').getDay(); // 0=Sun…6=Sat
-  const startCol = (startDow + 6) % 7; // convert to Mon=0…Sun=6
+  // Find which column (0=Mon...6=Sun) day 1 falls on
+  const startDow = new Date(normalizeDate(sd)+' 00:00:00').getDay(); // 0=Sun...6=Sat
+  const startCol = (startDow + 6) % 7; // convert to Mon=0...Sun=6
 
   const headerHtml = `<div class="week-headers">${WEEK_DAYS.map(w=>`<div class="week-hdr">${w}</div>`).join('')}</div>`;
 
@@ -623,6 +688,7 @@ function renderAll(){
   renderCategories();
   renderTracker();
   renderAnalytics();
+  renderSlots();
 }
 
 // ═══════════════════════════════════════════════
@@ -754,7 +820,7 @@ function renderCategories(){
           </div>`;
         }).join(''):'<p style="font-size:12px;color:var(--tx3);padding:4px 0 8px">No habits yet.</p>'}
         <div class="add-habit-row" style="flex-wrap:wrap">
-          <input type="text" id="hin_${c.id}" placeholder="Add habit…" maxlength="80" style="min-width:120px" onkeydown="if(event.key==='Enter')addHabitInline('${esc2(c.id)}','${esc2(c.name)}')">
+          <input type="text" id="hin_${c.id}" placeholder="Add habit..." maxlength="80" style="min-width:120px" onkeydown="if(event.key==='Enter')addHabitInline('${esc2(c.id)}','${esc2(c.name)}')">
           <input type="time" id="htim_${c.id}" value="06:00" style="padding:7px 8px;background:var(--s1);border:1px solid var(--bd2);border-radius:var(--rs);color:var(--tx);font-size:13px;outline:none;color-scheme:dark;width:110px">
           <button class="btn btn-sm btn-green" onclick="addHabitInline('${esc2(c.id)}','${esc2(c.name)}')">+</button>
         </div>
@@ -797,14 +863,17 @@ async function deleteCat(id,name){
 }
 
 async function deleteHabit(id,name){
-  if(!confirm('Delete habit "'+name+'"? This will also remove it from your tracker.')) return;
+  if(!confirm('Delete habit "'+name+'"? This will also remove it from the tracker and all its progress.')) return;
+  // Remove from memory immediately for instant UI feedback
   D.habits   = D.habits.filter(h=>h.id!==id);
   D.tracking = D.tracking.filter(t=>t.habit_id!==id);
   renderAll();
   try{
-    await apiPost('delete_habit',{id});
+    // delete_habit on server cascades: removes from Habits + all Tracking rows
+    const res = await apiPost('delete_habit',{id});
     toast('Habit deleted ✓','ok');
-    await refresh(true);
+    // Re-fetch to confirm server state — small delay so Sheets has time to write
+    setTimeout(()=>refresh(true), 800);
   }catch(e){
     toast('Error: '+e.message,'err');
     await refresh(true);
@@ -1162,7 +1231,7 @@ function pickColor(c,el){
 document.getElementById('btnConfirmCat').addEventListener('click',async()=>{
   const name=document.getElementById('inCatName').value.trim();
   if(!name){toast('Enter a name','err');return;}
-  const btn=document.getElementById('btnConfirmCat');btn.disabled=true;btn.textContent='Adding…';
+  const btn=document.getElementById('btnConfirmCat');btn.disabled=true;btn.textContent='Adding...';
   try{await apiPost('add_category',{name,color:selColor});closeModal('mAddCat');toast('Category added ✓','ok');await refresh(true);}
   catch(e){toast('Error: '+e.message,'err');}
   finally{btn.disabled=false;btn.textContent='Add';}
@@ -1181,7 +1250,7 @@ function openStartTrack(habitId,habitName,catName,habitTime){
 document.getElementById('btnConfirmTrack').addEventListener('click',async()=>{
   const sd=document.getElementById('inStartDate').value;
   if(!sd){toast('Pick a date','err');return;}
-  const btn=document.getElementById('btnConfirmTrack');btn.disabled=true;btn.textContent='Starting…';
+  const btn=document.getElementById('btnConfirmTrack');btn.disabled=true;btn.textContent='Starting...';
   const habitTime = document.getElementById('inStartTime').value||'';
   try{
     await apiPost('start_tracking',{habit_id:pendingTrack.habitId,habit_name:pendingTrack.habitName,category_name:pendingTrack.catName,start_date:sd,time:habitTime});
@@ -1190,6 +1259,183 @@ document.getElementById('btnConfirmTrack').addEventListener('click',async()=>{
     switchMainTab('home');switchSubTab('active');
   }catch(e){toast('Error: '+e.message,'err');}
   finally{btn.disabled=false;btn.textContent='Start 66-day journey →';}
+});
+
+// ═══════════════════════════════════════════════
+//  SLOTS — stored in localStorage (no extra sheet needed)
+//  Each slot: {id, name, start, end, color, habitIds:[]}
+// ═══════════════════════════════════════════════
+const SLOTS_KEY = 'ht_slots_v1';
+
+function loadSlots() {
+  try { D.slots = JSON.parse(localStorage.getItem(SLOTS_KEY)||'[]'); } catch(e){ D.slots=[]; }
+}
+
+function saveSlots() {
+  localStorage.setItem(SLOTS_KEY, JSON.stringify(D.slots));
+}
+
+function genSlotId() {
+  return 'sl_' + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
+}
+
+// ── RENDER SLOTS TAB ──
+function renderSlots() {
+  const el = document.getElementById('slotList');
+  if(!el) return;
+
+  if(!D.slots.length){
+    el.innerHTML=`<div class="empty" style="padding:30px 20px"><div class="eico">🗂️</div>
+      <h3>No slots yet</h3><p>Tap <strong>+ New Slot</strong> to create a group like "Morning Routine".</p></div>`;
+    return;
+  }
+
+  // Sort slots by start time
+  const sorted = [...D.slots].sort((a,b)=>(a.start||'').localeCompare(b.start||''));
+  const today = todayStr();
+
+  let html = '';
+  for(const slot of sorted){
+    const slotHabits = (slot.habitIds||[])
+      .map(hid => D.tracking.find(t=>t.habit_id===hid || t.id===hid))
+      .filter(Boolean);
+
+    const doneCount = slotHabits.filter(t=>{
+      const dI = dayIdx(normalizeDate(t.start_date));
+      return (t.checked_days||[]).includes(dI) && dI>=0 && dI<66;
+    }).length;
+
+    const timeLabel = slot.start && slot.end
+      ? `${fmtTime12(slot.start)} – ${fmtTime12(slot.end)}`
+      : slot.start ? fmtTime12(slot.start) : '';
+
+    html+=`<div class="slot-block" id="slot_${slot.id}">
+      <div class="slot-head" onclick="toggleSlot('${slot.id}')">
+        <div class="slot-dot" style="background:${slot.color||'#22c55e'}"></div>
+        <div class="slot-head-name">${esc(slot.name)}</div>
+        ${timeLabel?`<div class="slot-head-time">${timeLabel}</div>`:''}
+        <div class="slot-head-count">${doneCount}/${slotHabits.length} done</div>
+        <button class="btn btn-xs" onclick="event.stopPropagation();openEditSlot('${slot.id}')" style="color:var(--blue);padding:2px 7px">✎</button>
+        <button class="btn btn-xs" onclick="event.stopPropagation();deleteSlot('${slot.id}','${esc2(slot.name)}')" style="color:var(--tx3);padding:2px 6px">✕</button>
+        <span class="slot-chevron">▼</span>
+      </div>
+      <div class="slot-body">
+        ${slotHabits.length ? slotHabits.map(t=>{
+          const dI = dayIdx(normalizeDate(t.start_date));
+          const chk = t.checked_days||[];
+          const isDone = chk.includes(dI) && dI>=0 && dI<66;
+          const strk = streak(chk);
+          const adh = adherence(chk, normalizeDate(t.start_date));
+          const cat = D.categories.find(c=>c.name===t.category_name);
+          const color = cat?(cat.color||'#22c55e'):'#22c55e';
+          return `<div class="slot-habit-item">
+            <div class="slot-habit-check ${isDone?'done':dI>=0&&dI<66?'today-ring':''}"
+              onclick="quickMark('${esc2(t.id)}')">${isDone?'✓':''}</div>
+            <div class="slot-habit-name">
+              <div style="font-weight:500">${esc(t.habit_name)}</div>
+              <div style="font-size:10px;color:var(--tx3)">${adh}% adherence${strk>0?' · 🔥'+strk+'d':''}</div>
+            </div>
+            <div style="font-size:10px;color:${color};font-weight:600">${adh}%</div>
+          </div>`;
+        }).join('')
+        : `<p style="font-size:12px;color:var(--tx3)">No active habits in this slot. Edit to add habits.</p>`}
+      </div>
+    </div>`;
+  }
+  el.innerHTML = html;
+}
+
+function toggleSlot(id){
+  const el = document.getElementById('slot_'+id);
+  if(el) el.classList.toggle('open');
+}
+
+function deleteSlot(id, name){
+  if(!confirm('Delete slot "'+name+'"? Habits won't be affected.')) return;
+  D.slots = D.slots.filter(s=>s.id!==id);
+  saveSlots();
+  renderSlots();
+  toast('Slot deleted','ok');
+}
+
+let editingSlotId = null;
+let slotSelColor = '#22c55e';
+
+function openAddSlot(){
+  editingSlotId = null;
+  slotSelColor = COLORS[0];
+  document.getElementById('mSlotTitle').textContent = 'New slot';
+  document.getElementById('slotId').value = '';
+  document.getElementById('slotName').value = '';
+  document.getElementById('slotStart').value = '06:00';
+  document.getElementById('slotEnd').value = '08:00';
+  buildSlotColorPicker();
+  buildSlotHabitPicker([]);
+  openModal('mSlot');
+  setTimeout(()=>document.getElementById('slotName').focus(), 200);
+}
+
+function openEditSlot(id){
+  const slot = D.slots.find(s=>s.id===id);
+  if(!slot) return;
+  editingSlotId = id;
+  slotSelColor = slot.color||COLORS[0];
+  document.getElementById('mSlotTitle').textContent = 'Edit slot';
+  document.getElementById('slotId').value = id;
+  document.getElementById('slotName').value = slot.name;
+  document.getElementById('slotStart').value = slot.start||'06:00';
+  document.getElementById('slotEnd').value = slot.end||'08:00';
+  buildSlotColorPicker();
+  buildSlotHabitPicker(slot.habitIds||[]);
+  openModal('mSlot');
+}
+
+function buildSlotColorPicker(){
+  document.getElementById('slotColorSwatches').innerHTML = COLORS.map(c=>
+    `<div class="swatch${c===slotSelColor?' active':''}" style="background:${c}" onclick="pickSlotColor('${c}',this)"></div>`).join('');
+}
+
+function pickSlotColor(c, el){
+  slotSelColor = c;
+  document.querySelectorAll('#slotColorSwatches .swatch').forEach(s=>s.classList.remove('active'));
+  el.classList.add('active');
+}
+
+function buildSlotHabitPicker(selectedIds){
+  const el = document.getElementById('slotHabitPicker');
+  // Show all actively tracked habits as checkboxes
+  if(!D.tracking.length){
+    el.innerHTML='<p style="font-size:12px;color:var(--tx3)">No habits being tracked yet.</p>';
+    return;
+  }
+  el.innerHTML = D.tracking.map(t=>{
+    const checked = selectedIds.includes(t.habit_id) || selectedIds.includes(t.id);
+    return `<label style="display:flex;align-items:center;gap:8px;padding:6px 4px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--bd)">
+      <input type="checkbox" value="${esc(t.habit_id||t.id)}" ${checked?'checked':''} style="width:16px;height:16px;accent-color:var(--green)">
+      <span>${esc(t.habit_name)}</span>
+      <span style="font-size:10px;color:var(--tx3);margin-left:auto">${esc(t.category_name)}</span>
+    </label>`;
+  }).join('');
+}
+
+document.getElementById('btnConfirmSlot').addEventListener('click', ()=>{
+  const name = document.getElementById('slotName').value.trim();
+  if(!name){toast('Enter a slot name','err');return;}
+  const start = document.getElementById('slotStart').value;
+  const end   = document.getElementById('slotEnd').value;
+  // Collect checked habit IDs
+  const checked = [...document.querySelectorAll('#slotHabitPicker input[type=checkbox]:checked')].map(i=>i.value);
+
+  if(editingSlotId){
+    const slot = D.slots.find(s=>s.id===editingSlotId);
+    if(slot){ slot.name=name; slot.start=start; slot.end=end; slot.color=slotSelColor; slot.habitIds=checked; }
+  } else {
+    D.slots.push({id:genSlotId(), name, start, end, color:slotSelColor, habitIds:checked});
+  }
+  saveSlots();
+  closeModal('mSlot');
+  renderSlots();
+  toast(editingSlotId?'Slot updated ✓':'Slot created ✓','ok');
 });
 
 // ═══════════════════════════════════════════════
@@ -1207,7 +1453,7 @@ document.getElementById('btnConfirmEditHabit').addEventListener('click', async()
   const name = document.getElementById('editHabitName').value.trim();
   const time = document.getElementById('editHabitTime').value;
   if(!name){toast('Enter a name','err');return;}
-  const btn=document.getElementById('btnConfirmEditHabit');btn.disabled=true;btn.textContent='Saving…';
+  const btn=document.getElementById('btnConfirmEditHabit');btn.disabled=true;btn.textContent='Saving...';
   try{
     await apiPost('edit_habit',{id,name,time});
     // Update in memory
@@ -1235,7 +1481,7 @@ function openEditTime(trackingId, habitName, currentTime){
 document.getElementById('btnConfirmEditTime').addEventListener('click', async()=>{
   const id   = document.getElementById('editTimeTrackId').value;
   const time = document.getElementById('editTimeValue').value;
-  const btn=document.getElementById('btnConfirmEditTime');btn.disabled=true;btn.textContent='Saving…';
+  const btn=document.getElementById('btnConfirmEditTime');btn.disabled=true;btn.textContent='Saving...';
   try{
     await apiPost('update_tracking_time',{id,time});
     const entry = D.tracking.find(t=>t.id===id);
@@ -1262,8 +1508,10 @@ document.querySelectorAll('.main-tab').forEach(t=>t.addEventListener('click',()=
 function switchSubTab(id){
   document.querySelectorAll('.sub-tab').forEach(t=>t.classList.remove('active'));
   document.querySelector(`.sub-tab[data-sub="${id}"]`).classList.add('active');
-  document.getElementById('sub-active').style.display=id==='active'?'':'none';
-  document.getElementById('sub-all').style.display=id==='all'?'':'none';
+  document.getElementById('sub-active').style.display = id==='active' ? '' : 'none';
+  document.getElementById('sub-slots').style.display  = id==='slots'  ? '' : 'none';
+  document.getElementById('sub-all').style.display    = id==='all'    ? '' : 'none';
+  if(id==='slots') renderSlots();
 }
 document.querySelectorAll('.sub-tab').forEach(t=>t.addEventListener('click',()=>switchSubTab(t.dataset.sub)));
 
@@ -1287,7 +1535,9 @@ function esc2(s){return s?String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"):''
 //  BOOT
 // ═══════════════════════════════════════════════
 document.getElementById('btnAddCat').addEventListener('click', openAddCat);
+document.getElementById('btnAddSlot').addEventListener('click', openAddSlot);
 document.getElementById('btnRefresh').addEventListener('click', ()=>refresh(false));
+loadSlots();
 
 // Auto-connect on load — URL is hardcoded above
 refresh();
