@@ -1351,7 +1351,7 @@ function toggleSlot(id){
 }
 
 function deleteSlot(id, name){
-  if(!confirm('Delete slot "'+name+'"? Habits won't be affected.')) return;
+  if(!confirm('Delete slot "'+name+'"? Habits will not be affected.')) return;
   D.slots = D.slots.filter(s=>s.id!==id);
   saveSlots();
   renderSlots();
