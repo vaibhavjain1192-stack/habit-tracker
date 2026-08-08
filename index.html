@@ -60,10 +60,40 @@ input,select{font-family:var(--font)}
 .btn-ico{padding:6px 8px;font-size:13px}
 .btn-full{width:100%}
 
-/* MAIN TABS */
-.main-tabs{display:grid;grid-template-columns:repeat(3,1fr);gap:2px;background:var(--s1);border-radius:var(--r);padding:3px;margin-bottom:16px}
-.main-tab{padding:8px 4px;border-radius:var(--rs);border:none;cursor:pointer;font-size:12px;font-weight:500;background:transparent;color:var(--tx2);transition:.15s;text-align:center;-webkit-tap-highlight-color:transparent}
-.main-tab.active{background:var(--s3);color:var(--tx);font-weight:600}
+/* MAIN TABS — hidden on all screens, replaced by bottom nav */
+.main-tabs{display:none}
+
+/* BOTTOM NAV */
+.bottom-nav{
+  position:fixed;bottom:0;left:0;right:0;z-index:90;
+  background:var(--s1);
+  border-top:1px solid var(--bd2);
+  display:flex;align-items:stretch;
+  padding-bottom:env(safe-area-inset-bottom,0px); /* iPhone notch */
+  box-shadow:0 -4px 20px rgba(0,0,0,.4);
+}
+.bottom-nav-btn{
+  flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:3px;padding:10px 4px 10px;
+  border:none;background:transparent;cursor:pointer;
+  color:var(--tx3);font-family:var(--font);
+  transition:.15s;-webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+  position:relative;
+}
+.bottom-nav-btn:active{background:var(--s2)}
+.bottom-nav-btn.active{color:var(--green)}
+.bottom-nav-btn.active .bnav-icon{transform:translateY(-1px)}
+.bnav-icon{font-size:22px;line-height:1;transition:.15s}
+.bnav-label{font-size:10px;font-weight:600;letter-spacing:.3px;text-transform:uppercase;line-height:1}
+/* Active indicator dot */
+.bottom-nav-btn.active::before{
+  content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);
+  width:32px;height:2px;border-radius:0 0 2px 2px;
+  background:var(--green);
+}
+/* Add padding to app so content isn't hidden behind nav */
+.app{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}
 
 /* SUB TABS (inside Home) */
 .sub-tabs{display:flex;gap:2px;background:var(--s2);border-radius:var(--rs);padding:3px;margin-bottom:14px;width:fit-content}
@@ -237,7 +267,7 @@ input,select{font-family:var(--font)}
 .swatch.active,.swatch:hover{border-color:white;transform:scale(1.15)}
 
 /* TOAST */
-.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%) translateY(8px);background:var(--s3);border:1px solid var(--bd2);border-radius:var(--rs);padding:10px 16px;font-size:13px;z-index:200;opacity:0;transition:.2s;white-space:nowrap;pointer-events:none}
+.toast{position:fixed;bottom:calc(80px + env(safe-area-inset-bottom,0px));left:50%;transform:translateX(-50%) translateY(8px);background:var(--s3);border:1px solid var(--bd2);border-radius:var(--rs);padding:10px 16px;font-size:13px;z-index:200;opacity:0;transition:.2s;white-space:nowrap;pointer-events:none;max-width:calc(100vw - 32px)}
 .toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 .toast.ok{border-color:var(--green);color:var(--green)}
 .toast.err{border-color:var(--red);color:var(--red)}
@@ -278,11 +308,7 @@ input,select{font-family:var(--font)}
   </div>
 
   <!-- MAIN TABS -->
-  <div class="main-tabs">
-    <button class="main-tab active" data-tab="home">🏠 Home</button>
-    <button class="main-tab" data-tab="track">📊 Tracker</button>
-    <button class="main-tab" data-tab="ana">📈 Analytics</button>
-  </div>
+  <!-- Navigation rendered as bottom nav bar -->
 
   <!-- ═══ HOME TAB ═══ -->
   <div id="tab-home">
@@ -343,6 +369,22 @@ input,select{font-family:var(--font)}
 </div><!-- /app -->
 
 <div class="toast" id="toast"></div>
+
+<!-- BOTTOM NAV -->
+<nav class="bottom-nav">
+  <button class="bottom-nav-btn active" data-tab="home" onclick="switchMainTab('home')">
+    <span class="bnav-icon">🏠</span>
+    <span class="bnav-label">Home</span>
+  </button>
+  <button class="bottom-nav-btn" data-tab="track" onclick="switchMainTab('track')">
+    <span class="bnav-icon">📊</span>
+    <span class="bnav-label">Tracker</span>
+  </button>
+  <button class="bottom-nav-btn" data-tab="ana" onclick="switchMainTab('ana')">
+    <span class="bnav-icon">📈</span>
+    <span class="bnav-label">Analytics</span>
+  </button>
+</nav>
 
 <!-- ADD CATEGORY MODAL -->
 <div class="overlay" id="mAddCat" style="display:none">
@@ -1510,8 +1552,11 @@ document.getElementById('btnConfirmEditTime').addEventListener('click', async()=
 //  TABS
 // ═══════════════════════════════════════════════
 function switchMainTab(id){
-  document.querySelectorAll('.main-tab').forEach(t=>t.classList.remove('active'));
-  document.querySelector(`.main-tab[data-tab="${id}"]`).classList.add('active');
+  // Update bottom nav active state
+  document.querySelectorAll('.bottom-nav-btn').forEach(t=>t.classList.remove('active'));
+  const activeBtn = document.querySelector(`.bottom-nav-btn[data-tab="${id}"]`);
+  if(activeBtn) activeBtn.classList.add('active');
+  // Show/hide tab panels
   ['home','track','ana'].forEach(t=>document.getElementById('tab-'+t).style.display=t===id?'':'none');
   if(id==='track')renderTracker();
   if(id==='ana')renderAnalytics();
