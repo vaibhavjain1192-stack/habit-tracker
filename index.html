@@ -509,6 +509,7 @@ async function refresh(silent) {
     D.categories = res.categories || [];
     D.habits     = res.habits     || [];
     D.tracking   = res.tracking   || [];
+    D.slots      = res.slots      || [];
     setStatus('ok','Connected');
     renderAll();
   } catch(e) {
@@ -1262,22 +1263,15 @@ document.getElementById('btnConfirmTrack').addEventListener('click',async()=>{
 });
 
 // ═══════════════════════════════════════════════
-//  SLOTS — stored in localStorage (no extra sheet needed)
+//  SLOTS — stored in Google Sheets (Slots tab)
 //  Each slot: {id, name, start, end, color, habitIds:[]}
 // ═══════════════════════════════════════════════
-const SLOTS_KEY = 'ht_slots_v1';
-
-function loadSlots() {
-  try { D.slots = JSON.parse(localStorage.getItem(SLOTS_KEY)||'[]'); } catch(e){ D.slots=[]; }
-}
-
-function saveSlots() {
-  localStorage.setItem(SLOTS_KEY, JSON.stringify(D.slots));
-}
-
 function genSlotId() {
   return 'sl_' + Date.now().toString(36) + Math.random().toString(36).slice(2,5);
 }
+
+// slots come from D.slots which is loaded via refresh() from Sheets
+// No localStorage needed
 
 // ── RENDER SLOTS TAB ──
 function renderSlots() {
@@ -1350,12 +1344,15 @@ function toggleSlot(id){
   if(el) el.classList.toggle('open');
 }
 
-function deleteSlot(id, name){
+async function deleteSlot(id, name){
   if(!confirm('Delete slot "'+name+'"? Habits will not be affected.')) return;
   D.slots = D.slots.filter(s=>s.id!==id);
-  saveSlots();
   renderSlots();
-  toast('Slot deleted','ok');
+  try{
+    await apiPost('delete_slot',{id});
+    toast('Slot deleted','ok');
+    await refresh(true);
+  }catch(e){toast('Error: '+e.message,'err');await refresh(true);}
 }
 
 let editingSlotId = null;
@@ -1418,24 +1415,40 @@ function buildSlotHabitPicker(selectedIds){
   }).join('');
 }
 
-document.getElementById('btnConfirmSlot').addEventListener('click', ()=>{
+document.getElementById('btnConfirmSlot').addEventListener('click', async()=>{
   const name = document.getElementById('slotName').value.trim();
   if(!name){toast('Enter a slot name','err');return;}
-  const start = document.getElementById('slotStart').value;
-  const end   = document.getElementById('slotEnd').value;
-  // Collect checked habit IDs
+  const start   = document.getElementById('slotStart').value;
+  const end     = document.getElementById('slotEnd').value;
   const checked = [...document.querySelectorAll('#slotHabitPicker input[type=checkbox]:checked')].map(i=>i.value);
+  const btn = document.getElementById('btnConfirmSlot');
+  btn.disabled=true; btn.textContent='Saving...';
 
+  // Optimistic update
   if(editingSlotId){
     const slot = D.slots.find(s=>s.id===editingSlotId);
     if(slot){ slot.name=name; slot.start=start; slot.end=end; slot.color=slotSelColor; slot.habitIds=checked; }
   } else {
-    D.slots.push({id:genSlotId(), name, start, end, color:slotSelColor, habitIds:checked});
+    const newSlot = {id:genSlotId(), name, start, end, color:slotSelColor, habitIds:checked};
+    D.slots.push(newSlot);
   }
-  saveSlots();
   closeModal('mSlot');
   renderSlots();
-  toast(editingSlotId?'Slot updated ✓':'Slot created ✓','ok');
+
+  try{
+    const slotData = {
+      id: editingSlotId || D.slots[D.slots.length-1].id,
+      name, start, end, color:slotSelColor, habitIds:checked
+    };
+    await apiPost(editingSlotId ? 'edit_slot' : 'add_slot', slotData);
+    toast(editingSlotId?'Slot updated ✓':'Slot created ✓','ok');
+    await refresh(true);
+  }catch(e){
+    toast('Error saving slot: '+e.message,'err');
+    await refresh(true);
+  }finally{
+    btn.disabled=false; btn.textContent='Save slot';
+  }
 });
 
 // ═══════════════════════════════════════════════
@@ -1537,7 +1550,6 @@ function esc2(s){return s?String(s).replace(/\\/g,'\\\\').replace(/'/g,"\\'"):''
 document.getElementById('btnAddCat').addEventListener('click', openAddCat);
 document.getElementById('btnAddSlot').addEventListener('click', openAddSlot);
 document.getElementById('btnRefresh').addEventListener('click', ()=>refresh(false));
-loadSlots();
 
 // Auto-connect on load — URL is hardcoded above
 refresh();
@@ -1560,7 +1572,8 @@ refresh();
 const SHEET_NAMES = {
   categories: 'Categories',
   habits:     'Habits',
-  tracking:   'Tracking'
+  tracking:   'Tracking',
+  slots:      'Slots'
 };
 
 function makeResponse(data) {
@@ -1627,6 +1640,7 @@ function initSheets() {
   ensureSheet(ss, SHEET_NAMES.categories, ['id','name','color','created_at']);
   ensureSheet(ss, SHEET_NAMES.habits,     ['id','category_id','category_name','name','time','created_at']);
   ensureSheet(ss, SHEET_NAMES.tracking,   ['id','habit_id','habit_name','category_name','start_date','checked_days','time','created_at']);
+  ensureSheet(ss, SHEET_NAMES.slots,      ['id','name','start_time','end_time','color','habit_ids','created_at']);
 }
 
 // ── Convert sheet rows to objects using ACTUAL header row ──
@@ -1692,7 +1706,21 @@ function doGet(e) {
       };
     });
 
-    return makeResponse({ ok:true, categories, habits, tracking });
+    const slots = sheetToObjects(ss, SHEET_NAMES.slots).map(s => {
+      let habitIds = [];
+      try { habitIds = JSON.parse(String(s.habit_ids || '[]')); } catch(e) {}
+      return {
+        id:         String(s.id),
+        name:       String(s.name       || ''),
+        start:      String(s.start_time || ''),
+        end:        String(s.end_time   || ''),
+        color:      String(s.color      || '#22c55e'),
+        habitIds:   habitIds,
+        created_at: String(s.created_at || '')
+      };
+    });
+
+    return makeResponse({ ok:true, categories, habits, tracking, slots });
   } catch(err) {
     return makeResponse({ ok:false, error: err.message });
   }
@@ -1845,6 +1873,29 @@ function doPost(e) {
     // ── REMOVE TRACKING ──
     if (action === 'remove_tracking') {
       deleteRowById(SHEET_NAMES.tracking, data.id);
+      return makeResponse({ ok:true });
+    }
+
+    // ── ADD SLOT ──
+    if (action === 'add_slot') {
+      const id = data.id || genId();
+      appendRow(SHEET_NAMES.slots, [id, data.name, data.start||'', data.end||'', data.color||'#22c55e', JSON.stringify(data.habitIds||[]), now]);
+      return makeResponse({ ok:true, id });
+    }
+
+    // ── EDIT SLOT ──
+    if (action === 'edit_slot') {
+      updateByHeader(SHEET_NAMES.slots, data.id, 'name',       data.name);
+      updateByHeader(SHEET_NAMES.slots, data.id, 'start_time', data.start||'');
+      updateByHeader(SHEET_NAMES.slots, data.id, 'end_time',   data.end||'');
+      updateByHeader(SHEET_NAMES.slots, data.id, 'color',      data.color||'#22c55e');
+      updateByHeader(SHEET_NAMES.slots, data.id, 'habit_ids',  JSON.stringify(data.habitIds||[]));
+      return makeResponse({ ok:true });
+    }
+
+    // ── DELETE SLOT ──
+    if (action === 'delete_slot') {
+      deleteRowById(SHEET_NAMES.slots, data.id);
       return makeResponse({ ok:true });
     }
 
